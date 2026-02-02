@@ -1,6 +1,8 @@
 package tui
 
 import (
+	"strings"
+
 	"github.com/ajmeese7/termblog/internal/blog"
 	"github.com/ajmeese7/termblog/internal/storage"
 	"github.com/ajmeese7/termblog/internal/theme"
@@ -297,20 +299,26 @@ func (m *Model) renderFooter() string {
 }
 
 func (m *Model) renderHelpHint() string {
-	hints := []string{
-		m.styles.HelpKey.Render("?") + m.styles.HelpDesc.Render(" help"),
-		m.styles.HelpKey.Render("/") + m.styles.HelpDesc.Render(" search"),
-		m.styles.HelpKey.Render("q") + m.styles.HelpDesc.Render(" quit"),
-	}
+	var hints []string
 
+	// Add context-specific back hint
 	switch m.currentView {
 	case ViewReader:
-		hints = append([]string{
-			m.styles.HelpKey.Render("esc") + m.styles.HelpDesc.Render(" back"),
-		}, hints...)
+		hints = append(hints, m.styles.HelpKey.Render("esc")+m.styles.HelpDesc.Render(" back"))
+	case ViewSearch:
+		hints = append(hints, m.styles.HelpKey.Render("esc")+m.styles.HelpDesc.Render(" cancel"))
 	}
 
-	return lipgloss.JoinHorizontal(lipgloss.Center, hints...)
+	// Common hints
+	hints = append(hints,
+		m.styles.HelpKey.Render("?")+m.styles.HelpDesc.Render(" help"),
+		m.styles.HelpKey.Render("/")+m.styles.HelpDesc.Render(" search"),
+		m.styles.HelpKey.Render("q")+m.styles.HelpDesc.Render(" quit"),
+	)
+
+	// Join with separator
+	separator := m.styles.HelpDesc.Render("  │  ")
+	return strings.Join(hints, separator)
 }
 
 func (m *Model) renderHelp() string {
@@ -326,11 +334,14 @@ func (m *Model) renderHelp() string {
 		m.renderHelpLine("G/end", "Go to bottom"),
 		"",
 		m.styles.HelpSection.Render("Actions"),
-		m.renderHelpLine("enter/l", "Select/Open"),
-		m.renderHelpLine("esc/h", "Back"),
-		m.renderHelpLine("/", "Search"),
-		m.renderHelpLine("?", "Toggle help"),
+		m.renderHelpLine("enter/l", "Select/Open post"),
+		m.renderHelpLine("esc/h", "Go back"),
+		m.renderHelpLine("/", "Search posts"),
+		m.renderHelpLine("?", "Toggle this help"),
 		m.renderHelpLine("q", "Quit"),
+		"",
+		m.styles.HelpSection.Render("Tips"),
+		m.styles.HelpDesc.Render("Hold Shift + drag to select text for copying"),
 	}
 
 	content := lipgloss.JoinVertical(lipgloss.Left, sections...)
