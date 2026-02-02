@@ -189,6 +189,12 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 
+		// Handle escape to close help
+		if key.Matches(msg, m.keyMap.Back) && m.currentView == ViewHelp {
+			m.currentView = m.prevView
+			return m, nil
+		}
+
 	case PostSelectedMsg:
 		// User selected a post in list view
 		m.currentView = ViewReader
@@ -299,24 +305,29 @@ func (m *Model) renderFooter() string {
 }
 
 func (m *Model) renderHelpHint() string {
-	var hints []string
-
-	// Add context-specific back hint
-	switch m.currentView {
-	case ViewReader:
-		hints = append(hints, m.styles.HelpKey.Render("esc")+m.styles.HelpDesc.Render(" back"))
-	case ViewSearch:
-		hints = append(hints, m.styles.HelpKey.Render("esc")+m.styles.HelpDesc.Render(" cancel"))
+	// Helper to render a single hint
+	hint := func(key, desc string) string {
+		return m.styles.HelpKey.Render(key) + m.styles.HelpDesc.Render(" "+desc)
 	}
 
 	// Common hints
-	hints = append(hints,
-		m.styles.HelpKey.Render("?")+m.styles.HelpDesc.Render(" help"),
-		m.styles.HelpKey.Render("/")+m.styles.HelpDesc.Render(" search"),
-		m.styles.HelpKey.Render("q")+m.styles.HelpDesc.Render(" quit"),
-	)
+	helpHint := hint("?", "help")
+	searchHint := hint("/", "search")
+	quitHint := hint("q", "quit")
 
-	// Join with separator
+	var hints []string
+
+	switch m.currentView {
+	case ViewHelp:
+		hints = []string{hint("esc", "close"), quitHint}
+	case ViewReader:
+		hints = []string{hint("esc", "back"), helpHint, searchHint, quitHint}
+	case ViewSearch:
+		hints = []string{hint("esc", "cancel"), quitHint}
+	default:
+		hints = []string{helpHint, searchHint, quitHint}
+	}
+
 	separator := m.styles.HelpDesc.Render("  │  ")
 	return strings.Join(hints, separator)
 }

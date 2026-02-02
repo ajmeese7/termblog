@@ -39,3 +39,6 @@ build/
 # Temporary files
 tmp/
 temp/
+
+# Development
+COMMIT_MSG.txt
