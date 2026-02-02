@@ -12,7 +12,6 @@ import (
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/glamour"
-	"github.com/charmbracelet/lipgloss"
 )
 
 // ReaderModel handles the post reader view
@@ -21,9 +20,8 @@ type ReaderModel struct {
 	keyMap   KeyMap
 	viewport viewport.Model
 
-	post     *storage.Post
-	content  string
-	rendered string
+	post    *storage.Post
+	content string
 
 	width  int
 	height int
@@ -43,16 +41,23 @@ func (m *ReaderModel) SetSize(width, height int) {
 	m.width = width
 	m.height = height
 
-	headerHeight := 4 // Title + meta + padding
+	headerHeight := 3 // Title + meta + blank line
 	footerHeight := 1
 
+	viewportHeight := height - headerHeight - footerHeight
+	if viewportHeight < 1 {
+		viewportHeight = 1
+	}
+
 	if !m.ready {
-		m.viewport = viewport.New(width-4, height-headerHeight-footerHeight)
-		m.viewport.Style = m.styles.Reader
+		m.viewport = viewport.New(width, viewportHeight)
+		m.viewport.KeyMap = viewport.KeyMap{} // Disable default keys, we handle them
+		m.viewport.MouseWheelEnabled = true
+		m.viewport.SetYOffset(0)
 		m.ready = true
 	} else {
-		m.viewport.Width = width - 4
-		m.viewport.Height = height - headerHeight - footerHeight
+		m.viewport.Width = width
+		m.viewport.Height = viewportHeight
 	}
 
 	// Re-render content if we have it
@@ -71,7 +76,7 @@ func (m *ReaderModel) SetPost(post *storage.Post, content string) {
 
 // Update implements tea.Model
 func (m *ReaderModel) Update(msg tea.Msg) (*ReaderModel, tea.Cmd) {
-	var cmds []tea.Cmd
+	var cmd tea.Cmd
 
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
@@ -84,27 +89,27 @@ func (m *ReaderModel) Update(msg tea.Msg) (*ReaderModel, tea.Cmd) {
 			m.viewport.LineUp(1)
 		case key.Matches(msg, m.keyMap.Down):
 			m.viewport.LineDown(1)
-		case key.Matches(msg, m.keyMap.PageUp):
-			m.viewport.ViewUp()
-		case key.Matches(msg, m.keyMap.PageDown):
-			m.viewport.ViewDown()
 		case key.Matches(msg, m.keyMap.HalfUp):
 			m.viewport.HalfViewUp()
 		case key.Matches(msg, m.keyMap.HalfDown):
 			m.viewport.HalfViewDown()
+		case key.Matches(msg, m.keyMap.PageUp):
+			m.viewport.ViewUp()
+		case key.Matches(msg, m.keyMap.PageDown):
+			m.viewport.ViewDown()
 		case key.Matches(msg, m.keyMap.Top):
 			m.viewport.GotoTop()
 		case key.Matches(msg, m.keyMap.Bottom):
 			m.viewport.GotoBottom()
-		default:
-			// Pass to viewport for scrolling
-			var cmd tea.Cmd
-			m.viewport, cmd = m.viewport.Update(msg)
-			cmds = append(cmds, cmd)
 		}
+
+	case tea.MouseMsg:
+		// Let viewport handle mouse events
+		m.viewport, cmd = m.viewport.Update(msg)
+		return m, cmd
 	}
 
-	return m, tea.Batch(cmds...)
+	return m, nil
 }
 
 // View implements tea.Model
@@ -116,7 +121,6 @@ func (m *ReaderModel) View() string {
 	// Build header
 	title := m.styles.ReaderTitle.Render(m.post.Title)
 
-	// Meta info
 	var metaParts []string
 	if m.post.PublishedAt != nil {
 		metaParts = append(metaParts, m.post.PublishedAt.Format("January 2, 2006"))
@@ -126,42 +130,32 @@ func (m *ReaderModel) View() string {
 	}
 	meta := m.styles.ReaderMeta.Render(strings.Join(metaParts, " • "))
 
-	// Scroll indicator
+	// Scroll indicator - fixed width to prevent redraw flicker
 	scrollPercent := m.viewport.ScrollPercent() * 100
-	scrollInfo := m.styles.ReaderScroll.Render(
-		fmt.Sprintf(" %.0f%% ", scrollPercent),
-	)
+	scrollInfo := m.styles.ReaderScroll.Render(fmt.Sprintf(" %3.0f%% ", scrollPercent))
 
-	header := lipgloss.JoinVertical(
-		lipgloss.Left,
-		title,
-		meta,
-		"",
-	)
-
-	// Combine
-	return lipgloss.JoinVertical(
-		lipgloss.Left,
-		m.styles.Reader.Render(header),
-		m.viewport.View(),
-		scrollInfo,
-	)
+	// Manually join with newlines instead of lipgloss.JoinVertical
+	// This gives bubbletea's renderer consistent line counts
+	return title + "\n" + meta + "\n\n" + m.viewport.View() + "\n" + scrollInfo
 }
 
 func (m *ReaderModel) renderContent() {
 	if m.content == "" {
-		m.rendered = ""
 		m.viewport.SetContent("")
 		return
 	}
 
-	// Create a glamour renderer with appropriate width
+	contentWidth := m.width - 4
+	if contentWidth < 20 {
+		contentWidth = 20
+	}
+
+	// Create a glamour renderer
 	renderer, err := glamour.NewTermRenderer(
-		glamour.WithAutoStyle(),
-		glamour.WithWordWrap(m.viewport.Width-2),
+		glamour.WithStylePath("dark"),
+		glamour.WithWordWrap(contentWidth),
 	)
 	if err != nil {
-		m.rendered = m.content
 		m.viewport.SetContent(m.content)
 		return
 	}
@@ -169,25 +163,53 @@ func (m *ReaderModel) renderContent() {
 	// Extract just the body (skip frontmatter)
 	body := m.extractBody(m.content)
 
+	// Preprocess to fix nested blockquotes (glamour doesn't support them)
+	body = preprocessNestedBlockquotes(body)
+
 	rendered, err := renderer.Render(body)
 	if err != nil {
-		m.rendered = body
 		m.viewport.SetContent(body)
 		return
 	}
 
-	m.rendered = rendered
 	m.viewport.SetContent(rendered)
 }
 
 func (m *ReaderModel) extractBody(content string) string {
-	// Parse frontmatter and return just the body
 	loader := blog.NewContentLoader("")
 	post, err := loader.ParsePost(content, "")
 	if err != nil {
 		return content
 	}
 	return post.Content
+}
+
+// preprocessNestedBlockquotes converts nested blockquotes to a format glamour can handle
+func preprocessNestedBlockquotes(content string) string {
+	lines := strings.Split(content, "\n")
+	var result []string
+
+	for _, line := range lines {
+		// Count the number of > at the start of the line
+		trimmed := strings.TrimLeft(line, " \t")
+		level := 0
+		for strings.HasPrefix(trimmed, ">") {
+			level++
+			trimmed = strings.TrimPrefix(trimmed, ">")
+			trimmed = strings.TrimLeft(trimmed, " ")
+		}
+
+		if level > 1 {
+			// Convert nested quote to indented text with visual markers
+			// Use │ characters for each nesting level
+			prefix := strings.Repeat("│ ", level-1)
+			result = append(result, "> "+prefix+trimmed)
+		} else {
+			result = append(result, line)
+		}
+	}
+
+	return strings.Join(result, "\n")
 }
 
 // Helper function to load post content from file

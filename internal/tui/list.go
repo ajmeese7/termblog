@@ -74,14 +74,16 @@ func (m *ListModel) Update(msg tea.Msg) (*ListModel, tea.Cmd) {
 			return m, nil
 		}
 
-		// Only handle specific mouse buttons, ignore everything else (including right-click)
+		// Only handle left-click and scroll wheel, ignore everything else
 		switch msg.Button {
 		case tea.MouseButtonWheelUp:
 			m.moveCursor(-3)
+			return m, nil
 		case tea.MouseButtonWheelDown:
 			m.moveCursor(3)
+			return m, nil
 		case tea.MouseButtonLeft:
-			// Only handle left-click release
+			// Only handle left-click release (not press or motion)
 			if msg.Action == tea.MouseActionRelease {
 				// Calculate which post was clicked based on Y position
 				// Header takes ~2 lines, each post takes 3 lines
@@ -98,8 +100,9 @@ func (m *ListModel) Update(msg tea.Msg) (*ListModel, tea.Cmd) {
 					m.adjustOffset()
 				}
 			}
-		case tea.MouseButtonRight, tea.MouseButtonMiddle:
-			// Explicitly ignore right and middle click
+			return m, nil
+		default:
+			// Ignore all other mouse events (right-click, middle-click, motion, etc.)
 			return m, nil
 		}
 

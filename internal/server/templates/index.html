@@ -70,6 +70,7 @@
         #status.connected {
             background-color: #003300;
             color: #00ff00;
+			z-index: 2;
         }
 
         #status.disconnected {
@@ -94,37 +95,38 @@
     <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xterm-addon-web-links@0.9.0/lib/xterm-addon-web-links.min.js"></script>
     <script>
-        const wsUrl = '{{.WSUrl}}';
+        const wsUrl = "{{.WSUrl}}";
 
         // Initialize terminal
         const term = new Terminal({
             cursorBlink: true,
-            cursorStyle: 'block',
+            cursorStyle: "block",
             fontFamily: '"Fira Code", "Cascadia Code", Menlo, Monaco, "Courier New", monospace',
             fontSize: 14,
             lineHeight: 1.2,
+            scrollback: 0,  // Disable scrollback to prevent rendering issues
             theme: {
-                background: '#0a0a0a',
-                foreground: '#00ff00',
-                cursor: '#00ff00',
-                cursorAccent: '#0a0a0a',
-                selectionBackground: '#003300',
-                black: '#0a0a0a',
-                red: '#ff3333',
-                green: '#00ff00',
-                yellow: '#ffcc00',
-                blue: '#3399ff',
-                magenta: '#ff33ff',
-                cyan: '#33ffff',
-                white: '#cccccc',
-                brightBlack: '#666666',
-                brightRed: '#ff6666',
-                brightGreen: '#33ff33',
-                brightYellow: '#ffff33',
-                brightBlue: '#6699ff',
-                brightMagenta: '#ff66ff',
-                brightCyan: '#66ffff',
-                brightWhite: '#ffffff'
+                background: "#0a0a0a",
+                foreground: "#00ff00",
+                cursor: "#00ff00",
+                cursorAccent: "#0a0a0a",
+                selectionBackground: "#003300",
+                black: "#0a0a0a",
+                red: "#ff3333",
+                green: "#00ff00",
+                yellow: "#ffcc00",
+                blue: "#3399ff",
+                magenta: "#ff33ff",
+                cyan: "#33ffff",
+                white: "#cccccc",
+                brightBlack: "#666666",
+                brightRed: "#ff6666",
+                brightGreen: "#33ff33",
+                brightYellow: "#ffff33",
+                brightBlue: "#6699ff",
+                brightMagenta: "#ff66ff",
+                brightCyan: "#66ffff",
+                brightWhite: "#ffffff"
             },
             allowProposedApi: true
         });
@@ -135,7 +137,7 @@
         term.loadAddon(fitAddon);
         term.loadAddon(webLinksAddon);
 
-        const terminalElement = document.getElementById('terminal');
+        const terminalElement = document.getElementById("terminal");
         term.open(terminalElement);
 
         // WebSocket connection
@@ -150,23 +152,23 @@
         }
 
         fitTerminal();
-        window.addEventListener('resize', fitTerminal);
+        window.addEventListener("resize", fitTerminal);
 
         function setStatus(status) {
-            const statusEl = document.getElementById('status');
+            const statusEl = document.getElementById("status");
             statusEl.className = status;
             statusEl.textContent = status.charAt(0).toUpperCase() + status.slice(1);
         }
 
         function connect() {
-            setStatus('connecting');
+            setStatus("connecting");
 
             ws = new WebSocket(wsUrl);
-            ws.binaryType = 'arraybuffer';
+            ws.binaryType = "arraybuffer";
 
             ws.onopen = function() {
-                document.getElementById('loading').classList.add('hidden');
-                setStatus('connected');
+                document.getElementById("loading").classList.add("hidden");
+                setStatus("connected");
                 reconnectAttempts = 0;
 
                 // Send initial resize
@@ -182,20 +184,20 @@
             };
 
             ws.onclose = function() {
-                setStatus('disconnected');
+                setStatus("disconnected");
 
                 // Attempt reconnection
                 if (reconnectAttempts < maxReconnectAttempts) {
                     reconnectAttempts++;
                     setTimeout(connect, 2000 * reconnectAttempts);
                 } else {
-                    term.write('\r\n\x1b[31mConnection lost. Refresh to reconnect.\x1b[0m\r\n');
+                    term.write("\r\n\x1b[31mConnection lost. Refresh to reconnect.\x1b[0m\r\n");
                 }
             };
 
             ws.onerror = function(error) {
-                console.error('WebSocket error:', error);
-                setStatus('disconnected');
+                console.error("WebSocket error:", error);
+                setStatus("disconnected");
             };
         }
 
@@ -204,16 +206,26 @@
                 const dims = fitAddon.proposeDimensions();
                 if (dims) {
                     // Send resize message: \x01{rows},{cols}
-                    ws.send('\x01' + dims.rows + ',' + dims.cols);
+                    ws.send('\x01' + dims.rows + "," + dims.cols);
                 }
             }
         }
 
-        // Handle terminal input
+        // Handle terminal input - send data to WebSocket
         term.onData(function(data) {
             if (ws && ws.readyState === WebSocket.OPEN) {
                 ws.send(data);
             }
+        });
+
+        // Copy selection to clipboard on Ctrl+C when there's a selection
+        term.attachCustomKeyEventHandler((e) => {
+            if (e.ctrlKey && e.key === "c" && term.hasSelection()) {
+                const selection = term.getSelection();
+                navigator.clipboard.writeText(selection);
+                return false; // Prevent sending to terminal
+            }
+            return true;
         });
 
         // Connect on load
@@ -221,7 +233,7 @@
 
         // Focus terminal
         term.focus();
-        terminalElement.addEventListener('click', () => term.focus());
+        terminalElement.addEventListener("click", () => term.focus());
     </script>
 </body>
 </html>

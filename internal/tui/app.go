@@ -352,7 +352,7 @@ func (m *Model) renderHelp() string {
 		m.renderHelpLine("q", "Quit"),
 		"",
 		m.styles.HelpSection.Render("Tips"),
-		m.styles.HelpDesc.Render("Hold Shift + drag to select text for copying"),
+		m.styles.HelpDesc.Render("Hold Shift + drag to select text"),
 	}
 
 	content := lipgloss.JoinVertical(lipgloss.Left, sections...)

@@ -80,6 +80,13 @@ func (m *SearchModel) Update(msg tea.Msg) (*SearchModel, tea.Cmd) {
 			m.input.Blur()
 			return m, func() tea.Msg { return SearchCancelledMsg{} }
 
+		case key.Matches(msg, key.NewBinding(key.WithKeys("ctrl+c"))):
+			// Clear search input
+			m.input.SetValue("")
+			m.results = nil
+			m.cursor = 0
+			return m, nil
+
 		case key.Matches(msg, key.NewBinding(key.WithKeys("enter"))):
 			if len(m.results) > 0 && m.cursor < len(m.results) {
 				// Select a result

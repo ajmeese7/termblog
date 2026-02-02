@@ -193,7 +193,10 @@ func (s *HTTPServer) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 
 	// Spawn the PTY process
 	cmd := exec.Command(s.binaryPath, "pty")
-	cmd.Env = append(os.Environ(), "TERM=xterm-256color")
+	cmd.Env = append(os.Environ(),
+		"TERM=xterm-256color",
+		"TERMBLOG_NO_MOUSE=1", // Disable mouse mode to allow text selection in browser
+	)
 
 	ptmx, err := pty.Start(cmd)
 	if err != nil {
