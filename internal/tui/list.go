@@ -69,6 +69,40 @@ func (m *ListModel) Update(msg tea.Msg) (*ListModel, tea.Cmd) {
 		m.err = msg.err
 		return m, nil
 
+	case tea.MouseMsg:
+		if m.loading {
+			return m, nil
+		}
+
+		// Only handle specific mouse buttons, ignore everything else (including right-click)
+		switch msg.Button {
+		case tea.MouseButtonWheelUp:
+			m.moveCursor(-3)
+		case tea.MouseButtonWheelDown:
+			m.moveCursor(3)
+		case tea.MouseButtonLeft:
+			// Only handle left-click release
+			if msg.Action == tea.MouseActionRelease {
+				// Calculate which post was clicked based on Y position
+				// Header takes ~2 lines, each post takes 3 lines
+				headerHeight := 2
+				postHeight := 3
+				clickedIdx := m.offset + (msg.Y-headerHeight)/postHeight
+
+				if clickedIdx >= 0 && clickedIdx < len(m.posts) {
+					if clickedIdx == m.cursor {
+						// Click on already selected - enter post
+						return m, m.selectPost()
+					}
+					m.cursor = clickedIdx
+					m.adjustOffset()
+				}
+			}
+		case tea.MouseButtonRight, tea.MouseButtonMiddle:
+			// Explicitly ignore right and middle click
+			return m, nil
+		}
+
 	case tea.KeyMsg:
 		if m.loading {
 			return m, nil

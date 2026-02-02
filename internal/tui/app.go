@@ -186,31 +186,31 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.prevView = m.currentView
 				m.currentView = ViewHelp
 			}
-			return m, nil
+			return m, tea.ClearScreen
 		}
 
 		// Handle escape to close help
 		if key.Matches(msg, m.keyMap.Back) && m.currentView == ViewHelp {
 			m.currentView = m.prevView
-			return m, nil
+			return m, tea.ClearScreen
 		}
 
 	case PostSelectedMsg:
 		// User selected a post in list view
 		m.currentView = ViewReader
 		m.reader.SetPost(msg.Post, msg.Content)
-		return m, nil
+		return m, tea.ClearScreen
 
 	case BackToListMsg:
 		// User pressed back in reader view
 		m.currentView = ViewList
-		return m, nil
+		return m, tea.ClearScreen
 
 	case SearchActivatedMsg:
 		// User activated search
 		m.prevView = m.currentView
 		m.currentView = ViewSearch
-		return m, m.search.Focus()
+		return m, tea.Batch(tea.ClearScreen, m.search.Focus())
 
 	case SearchCompletedMsg:
 		// Search completed, show results or selected post
@@ -220,11 +220,11 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		} else {
 			m.currentView = m.prevView
 		}
-		return m, nil
+		return m, tea.ClearScreen
 
 	case SearchCancelledMsg:
 		m.currentView = m.prevView
-		return m, nil
+		return m, tea.ClearScreen
 
 	case StatusMsg:
 		m.statusMsg = msg.Message
