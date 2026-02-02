@@ -138,6 +138,11 @@
         const terminalElement = document.getElementById('terminal');
         term.open(terminalElement);
 
+        // WebSocket connection
+        let ws;
+        let reconnectAttempts = 0;
+        const maxReconnectAttempts = 5;
+
         // Fit terminal to container
         function fitTerminal() {
             fitAddon.fit();
@@ -146,11 +151,6 @@
 
         fitTerminal();
         window.addEventListener('resize', fitTerminal);
-
-        // WebSocket connection
-        let ws;
-        let reconnectAttempts = 0;
-        const maxReconnectAttempts = 5;
 
         function setStatus(status) {
             const statusEl = document.getElementById('status');
