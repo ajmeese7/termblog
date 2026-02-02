@@ -1,0 +1,13 @@
+name: "Pip-Boy"
+description: "Retro green terminal aesthetic inspired by Fallout"
+colors:
+  primary: "#00ff00"
+  secondary: "#00cc00"
+  background: "#0a0a0a"
+  text: "#00ff00"
+  muted: "#006600"
+  accent: "#33ff33"
+  error: "#ff3333"
+  success: "#00ff00"
+  warning: "#ffcc00"
+  border: "#00aa00"

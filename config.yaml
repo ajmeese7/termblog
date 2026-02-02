@@ -1,0 +1,16 @@
+blog:
+  title: "My Terminal Blog"
+  description: "A blog you can read in your terminal"
+  author: "Anonymous"
+  base_url: "http://localhost:8080"
+  content_dir: "content/posts"
+
+server:
+  ssh_port: 2222
+  http_port: 8080
+  host_key_path: ".ssh/termblog_host_key"
+
+storage:
+  database_path: "termblog.db"
+
+theme: "pipboy"

@@ -1,0 +1,41 @@
+# Binaries
+termblog
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary
+*.test
+
+# Output of go coverage
+*.out
+
+# Database
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+
+# SSH keys
+.ssh/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Build output
+dist/
+build/
+
+# Temporary files
+tmp/
+temp/
