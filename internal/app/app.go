@@ -23,6 +23,7 @@ type BlogConfig struct {
 	BaseURL     string `yaml:"base_url"`
 	ContentDir  string `yaml:"content_dir"`
 	ExitMessage string `yaml:"exit_message"`
+	MOTD        string `yaml:"motd"` // Message of the day shown on SSH connect
 }
 
 // ServerConfig holds server settings

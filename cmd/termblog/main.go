@@ -190,6 +190,7 @@ func runServe(sshOnly, httpOnly bool) error {
 			RateLimitCount:  cfg.Server.RateLimit.Limit,
 			RateLimitWindow: time.Duration(cfg.Server.RateLimit.Window) * time.Second,
 			ExitMessage:     cfg.Blog.ExitMessage,
+			MOTD:            cfg.Blog.MOTD,
 			FeedGenerator:   feedGen,
 		}
 		sshServer, err := server.NewSSHServer(

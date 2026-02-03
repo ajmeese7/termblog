@@ -44,6 +44,7 @@ type SSHConfig struct {
 	RateLimitCount  int
 	RateLimitWindow time.Duration
 	ExitMessage     string
+	MOTD            string              // Message of the day shown on connect
 	FeedGenerator   *blog.FeedGenerator // For RSS command support
 }
 
@@ -82,6 +83,7 @@ func NewSSHServer(host string, port int, hostKeyPath string, repo *storage.PostR
 		wish.WithMiddleware(
 			exitMessageMiddleware(sshCfg.ExitMessage),
 			s.commandMiddleware(), // Handle non-interactive commands
+			motdMiddleware(sshCfg.MOTD),
 			bubbletea.Middleware(s.teaHandler),
 			activeterm.Middleware(),
 			RateLimitMiddleware(rateLimiter),
@@ -180,6 +182,21 @@ func exitMessageMiddleware(message string) wish.Middleware {
 				wish.Println(sess, msg)
 				wish.Println(sess, "")
 			}
+		}
+	}
+}
+
+// motdMiddleware displays a message of the day before the TUI loads
+func motdMiddleware(motd string) wish.Middleware {
+	return func(next ssh.Handler) ssh.Handler {
+		return func(sess ssh.Session) {
+			// Only display MOTD for interactive sessions (no command)
+			if msg := strings.TrimSpace(motd); msg != "" && len(sess.Command()) == 0 {
+				wish.Println(sess, "")
+				wish.Println(sess, msg)
+				wish.Println(sess, "")
+			}
+			next(sess)
 		}
 	}
 }
