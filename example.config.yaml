@@ -21,11 +21,6 @@ blog:
   exit_message: |
     Thanks for visiting! Check out the web version at https://example.com
 
-  # Message of the day shown on SSH connect (before TUI loads)
-  motd: |
-    Welcome to my blog!
-    Press ? for help, t for themes, / to search.
-
   # Path to ASCII art file for TUI header (optional)
   # ascii_header: "header.txt"
 

@@ -12,7 +12,6 @@ blog:
   base_url: "https://blog.example.com"
   content_dir: "content/posts"
   exit_message: "Thanks for visiting!"
-  motd: "Welcome to my blog! Press ? for help."
   ascii_header: "header.txt"  # Optional ASCII art file
 
 server:
@@ -41,7 +40,6 @@ theme: "pipboy"  # Theme name or path to custom theme YAML
 | `base_url` | string | "http://localhost:8080" | Base URL for feeds and links |
 | `content_dir` | string | "content/posts" | Directory containing markdown posts |
 | `exit_message` | string | - | Message shown when exiting SSH session |
-| `motd` | string | - | Message of the day shown on SSH connect |
 | `ascii_header` | string | - | Path to ASCII art file for TUI header |
 
 ### Server Section
