@@ -2,6 +2,7 @@ package tui
 
 import (
 	"strings"
+	"time"
 
 	"github.com/ajmeese7/termblog/internal/blog"
 	"github.com/ajmeese7/termblog/internal/storage"
@@ -111,6 +112,11 @@ type Model struct {
 	keyMap KeyMap
 	config Config
 
+	// Theme state
+	themes     []*theme.Theme
+	themeNames []string
+	themeIndex int
+
 	// View state
 	currentView View
 	prevView    View
@@ -136,12 +142,27 @@ type Model struct {
 func New(repo *storage.PostRepository, loader *blog.ContentLoader, t *theme.Theme, cfg Config) *Model {
 	styles := theme.NewStyles(t)
 
+	// Build theme list for cycling
+	themeMap := theme.DefaultThemes()
+	themeNames := []string{"pipboy", "dracula", "nord", "monokai"}
+	themes := make([]*theme.Theme, len(themeNames))
+	currentIndex := 0
+	for i, name := range themeNames {
+		themes[i] = themeMap[name]
+		if themes[i].Name == t.Name {
+			currentIndex = i
+		}
+	}
+
 	m := &Model{
 		repo:        repo,
 		loader:      loader,
 		styles:      styles,
 		keyMap:      DefaultKeyMap(),
 		config:      cfg,
+		themes:      themes,
+		themeNames:  themeNames,
+		themeIndex:  currentIndex,
 		currentView: ViewList,
 	}
 
@@ -176,6 +197,11 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Handle quit in any view
 		if key.Matches(msg, m.keyMap.Quit) && m.currentView != ViewSearch {
 			return m, tea.Quit
+		}
+
+		// Handle theme toggle (t key) in any view except search
+		if msg.String() == "t" && m.currentView != ViewSearch {
+			return m, m.cycleTheme()
 		}
 
 		// Handle help toggle
@@ -229,6 +255,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case StatusMsg:
 		m.statusMsg = msg.Message
 		m.isError = msg.IsError
+		return m, nil
+
+	case clearStatusMsg:
+		m.statusMsg = ""
 		return m, nil
 	}
 
@@ -313,19 +343,20 @@ func (m *Model) renderHelpHint() string {
 	// Common hints
 	helpHint := hint("?", "help")
 	searchHint := hint("/", "search")
+	themeHint := hint("t", "theme")
 	quitHint := hint("q", "quit")
 
 	var hints []string
 
 	switch m.currentView {
 	case ViewHelp:
-		hints = []string{hint("esc", "close"), quitHint}
+		hints = []string{hint("esc", "close"), themeHint, quitHint}
 	case ViewReader:
-		hints = []string{hint("esc", "back"), helpHint, searchHint, quitHint}
+		hints = []string{hint("esc", "back"), helpHint, searchHint, themeHint, quitHint}
 	case ViewSearch:
-		hints = []string{hint("esc", "cancel"), quitHint}
+		hints = []string{hint("esc", "cancel")}
 	default:
-		hints = []string{helpHint, searchHint, quitHint}
+		hints = []string{helpHint, searchHint, themeHint, quitHint}
 	}
 
 	separator := m.styles.HelpDesc.Render("  │  ")
@@ -348,6 +379,7 @@ func (m *Model) renderHelp() string {
 		m.renderHelpLine("enter/l", "Select/Open post"),
 		m.renderHelpLine("esc/h", "Go back"),
 		m.renderHelpLine("/", "Search posts"),
+		m.renderHelpLine("t", "Cycle theme"),
 		m.renderHelpLine("?", "Toggle this help"),
 		m.renderHelpLine("q", "Quit"),
 		"",
@@ -364,6 +396,30 @@ func (m *Model) renderHelpLine(key, desc string) string {
 	d := m.styles.HelpDesc.Render(" - " + desc)
 	return k + d
 }
+
+// cycleTheme switches to the next theme in the list
+func (m *Model) cycleTheme() tea.Cmd {
+	m.themeIndex = (m.themeIndex + 1) % len(m.themes)
+	newTheme := m.themes[m.themeIndex]
+	m.styles = theme.NewStyles(newTheme)
+
+	// Update styles in sub-models
+	m.list.styles = m.styles
+	m.reader.SetTheme(m.styles, m.themeNames[m.themeIndex])
+	m.search.styles = m.styles
+
+	// Show theme name temporarily
+	m.statusMsg = "Theme: " + newTheme.Name
+	m.isError = false
+
+	// Return command to clear status after delay
+	return tea.Tick(time.Second, func(t time.Time) tea.Msg {
+		return clearStatusMsg{}
+	})
+}
+
+// clearStatusMsg is sent to clear the status message after a delay
+type clearStatusMsg struct{}
 
 // Messages
 

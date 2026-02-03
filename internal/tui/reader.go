@@ -16,9 +16,10 @@ import (
 
 // ReaderModel handles the post reader view
 type ReaderModel struct {
-	styles   *theme.Styles
-	keyMap   KeyMap
-	viewport viewport.Model
+	styles    *theme.Styles
+	keyMap    KeyMap
+	viewport  viewport.Model
+	themeName string
 
 	post    *storage.Post
 	content string
@@ -31,8 +32,19 @@ type ReaderModel struct {
 // NewReaderModel creates a new reader model
 func NewReaderModel(styles *theme.Styles) *ReaderModel {
 	return &ReaderModel{
-		styles: styles,
-		keyMap: DefaultKeyMap(),
+		styles:    styles,
+		keyMap:    DefaultKeyMap(),
+		themeName: "pipboy", // default theme
+	}
+}
+
+// SetTheme updates the theme and re-renders content
+func (m *ReaderModel) SetTheme(styles *theme.Styles, themeName string) {
+	m.styles = styles
+	m.themeName = themeName
+	// Re-render content with new theme
+	if m.content != "" {
+		m.renderContent()
 	}
 }
 
@@ -150,9 +162,12 @@ func (m *ReaderModel) renderContent() {
 		contentWidth = 20
 	}
 
+	// Map theme to glamour style
+	glamourStyle := m.getGlamourStyle()
+
 	// Create a glamour renderer
 	renderer, err := glamour.NewTermRenderer(
-		glamour.WithStylePath("dark"),
+		glamour.WithStylePath(glamourStyle),
 		glamour.WithWordWrap(contentWidth),
 	)
 	if err != nil {
@@ -173,6 +188,23 @@ func (m *ReaderModel) renderContent() {
 	}
 
 	m.viewport.SetContent(rendered)
+}
+
+// getGlamourStyle returns the glamour style path for the current theme
+// Built-in glamour styles: auto, dark, light, dracula, notty, pink, ascii
+func (m *ReaderModel) getGlamourStyle() string {
+	switch m.themeName {
+	case "dracula":
+		return "dracula"
+	case "nord":
+		return "dark" // nord is dark theme, use dark style
+	case "pipboy":
+		return "dark"
+	case "monokai":
+		return "dark"
+	default:
+		return "dark"
+	}
 }
 
 func (m *ReaderModel) extractBody(content string) string {
