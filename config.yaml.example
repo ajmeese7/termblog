@@ -1,0 +1,36 @@
+# TermBlog Configuration
+# Copy this file to config.yaml and customize as needed
+
+blog:
+  # Blog title displayed in the TUI header
+  title: "My Terminal Blog"
+
+  # Short description for feeds and meta tags
+  description: "A blog you can read in your terminal"
+
+  # Default author name for new posts
+  author: "Your Name"
+
+  # Base URL for RSS feeds and links (no trailing slash)
+  base_url: "https://example.com"
+
+  # Directory containing markdown posts (relative to config file)
+  content_dir: "content/posts"
+
+server:
+  # SSH server port (connect via: ssh localhost -p 2222)
+  ssh_port: 2222
+
+  # HTTP server port (web terminal and feeds)
+  http_port: 8080
+
+  # Path to SSH host key (auto-generated if missing)
+  host_key_path: ".ssh/termblog_host_key"
+
+storage:
+  # SQLite database path (relative to config file)
+  database_path: "termblog.db"
+
+# Theme name: pipboy, dracula, nord, monokai
+# Or path to custom theme YAML file
+theme: "dracula"

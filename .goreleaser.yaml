@@ -1,0 +1,119 @@
+# GoReleaser configuration
+# Documentation: https://goreleaser.com
+
+version: 2
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: termblog
+    main: ./cmd/termblog
+    binary: termblog
+    env:
+      - CGO_ENABLED=1
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+      - -X github.com/ajmeese7/termblog/internal/version.Version={{.Version}}
+      - -X github.com/ajmeese7/termblog/internal/version.Commit={{.ShortCommit}}
+      - -X github.com/ajmeese7/termblog/internal/version.Date={{.Date}}
+    # CGO is required for SQLite, so we need to handle cross-compilation
+    overrides:
+      - goos: linux
+        goarch: amd64
+        env:
+          - CGO_ENABLED=1
+          - CC=gcc
+      - goos: linux
+        goarch: arm64
+        env:
+          - CGO_ENABLED=1
+          - CC=aarch64-linux-gnu-gcc
+      - goos: darwin
+        goarch: amd64
+        env:
+          - CGO_ENABLED=1
+          - CC=o64-clang
+      - goos: darwin
+        goarch: arm64
+        env:
+          - CGO_ENABLED=1
+          - CC=oa64-clang
+
+archives:
+  - id: default
+    name_template: >-
+      {{ .ProjectName }}_
+      {{- .Version }}_
+      {{- .Os }}_
+      {{- .Arch }}
+    format: tar.gz
+    format_overrides:
+      - goos: windows
+        format: zip
+    files:
+      - README.md
+      - LICENSE
+      - config.yaml.example
+
+checksum:
+  name_template: 'checksums.txt'
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-next"
+
+changelog:
+  sort: asc
+  use: github
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
+      - '^chore:'
+      - Merge pull request
+      - Merge branch
+  groups:
+    - title: Features
+      regexp: '^.*?feat(\([[:word:]]+\))??!?:.+$'
+      order: 0
+    - title: Bug Fixes
+      regexp: '^.*?fix(\([[:word:]]+\))??!?:.+$'
+      order: 1
+    - title: Other
+      order: 999
+
+release:
+  github:
+    owner: ajmeese7
+    name: termblog
+  draft: false
+  prerelease: auto
+  name_template: "v{{.Version}}"
+  header: |
+    ## TermBlog v{{.Version}}
+
+    ### Installation
+
+    **Download binary:**
+    ```bash
+    # Linux (amd64)
+    curl -sSL https://github.com/ajmeese7/termblog/releases/download/v{{.Version}}/termblog_{{.Version}}_linux_amd64.tar.gz | tar xz
+
+    # macOS (Apple Silicon)
+    curl -sSL https://github.com/ajmeese7/termblog/releases/download/v{{.Version}}/termblog_{{.Version}}_darwin_arm64.tar.gz | tar xz
+    ```
+
+    **Or use Go:**
+    ```bash
+    go install github.com/ajmeese7/termblog/cmd/termblog@v{{.Version}}
+    ```
+  footer: |
+    ---
+    **Full Changelog**: https://github.com/ajmeese7/termblog/compare/{{ .PreviousTag }}...{{ .Tag }}

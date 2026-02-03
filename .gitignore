@@ -40,5 +40,8 @@ build/
 tmp/
 temp/
 
+# Local config
+config.yaml
+
 # Development
 COMMIT_MSG.txt

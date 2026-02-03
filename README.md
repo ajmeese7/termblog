@@ -13,14 +13,39 @@ A self-hosted, terminal-based blogging platform. Read and write blog posts throu
 - **Theming** - Built-in themes (Pip-Boy, Dracula, Nord, Monokai) plus custom YAML themes
 - **Single Binary** - No external runtime dependencies
 
+## Installation
+
+### Download Binary
+
+```bash
+# Linux (amd64)
+curl -sSL https://github.com/ajmeese7/termblog/releases/latest/download/termblog_*_linux_amd64.tar.gz | tar xz
+sudo mv termblog /usr/local/bin/
+
+# macOS (Apple Silicon)
+curl -sSL https://github.com/ajmeese7/termblog/releases/latest/download/termblog_*_darwin_arm64.tar.gz | tar xz
+sudo mv termblog /usr/local/bin/
+```
+
+### Go Install
+
+```bash
+go install github.com/ajmeese7/termblog/cmd/termblog@latest
+```
+
+### From Source
+
+```bash
+git clone https://github.com/ajmeese7/termblog.git
+cd termblog
+make build
+```
+
 ## Quick Start
 
 ```bash
-# Build
-go build -o termblog ./cmd/termblog
-
 # Start the server
-./termblog serve
+termblog serve
 
 # Access via SSH
 ssh localhost -p 2222
@@ -38,6 +63,7 @@ open http://localhost:8080
 | `termblog serve --http-only` | Start HTTP server only |
 | `termblog new "Post Title"` | Create a new post |
 | `termblog sync` | Sync markdown files to database |
+| `termblog version` | Show version info |
 
 ## Configuration
 
@@ -107,7 +133,8 @@ Your content here...
 │   ├── server/         # SSH and HTTP servers
 │   ├── storage/        # SQLite database layer
 │   ├── theme/          # Color themes and styling
-│   └── tui/            # Terminal UI (Bubbletea)
+│   ├── tui/            # Terminal UI (Bubbletea)
+│   └── version/        # Build-time version info
 ├── content/posts/      # Markdown blog posts
 └── config.yaml         # Configuration
 ```
@@ -119,6 +146,10 @@ Built with the [Charm](https://charm.sh) ecosystem:
 - [Glamour](https://github.com/charmbracelet/glamour) - Markdown rendering
 - [Lipgloss](https://github.com/charmbracelet/lipgloss) - Terminal styling
 - [Wish](https://github.com/charmbracelet/wish) - SSH server
+
+## Contributing
+
+See [RELEASING.md](./docs/RELEASING.md) for information on the release process and version management.
 
 ## License
 
