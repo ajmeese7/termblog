@@ -100,6 +100,22 @@ func (l *ContentLoader) ParsePost(content string, filePath string) (*Post, error
 	return post, nil
 }
 
+// LoadBySlug loads a post by its slug
+func (l *ContentLoader) LoadBySlug(slug string) (*Post, error) {
+	posts, err := l.LoadAllPosts()
+	if err != nil {
+		return nil, err
+	}
+
+	for _, post := range posts {
+		if post.Slug == slug {
+			return post, nil
+		}
+	}
+
+	return nil, nil
+}
+
 // LoadAllPosts loads all posts from the content directory
 func (l *ContentLoader) LoadAllPosts() ([]*Post, error) {
 	var posts []*Post

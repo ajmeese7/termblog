@@ -33,6 +33,7 @@ type SSHServer struct {
 	theme       *theme.Theme
 	config      tui.Config
 	rateLimiter *RateLimiter
+	cmdHandler  *CommandHandler
 
 	host string
 	port int
@@ -43,12 +44,16 @@ type SSHConfig struct {
 	RateLimitCount  int
 	RateLimitWindow time.Duration
 	ExitMessage     string
+	FeedGenerator   *blog.FeedGenerator // For RSS command support
 }
 
 // NewSSHServer creates a new SSH server
 func NewSSHServer(host string, port int, hostKeyPath string, repo *storage.PostRepository, prefRepo *storage.PreferenceRepository, loader *blog.ContentLoader, t *theme.Theme, tuiCfg tui.Config, sshCfg SSHConfig) (*SSHServer, error) {
 	// Create rate limiter with configurable settings
 	rateLimiter := NewRateLimiter(sshCfg.RateLimitCount, sshCfg.RateLimitWindow)
+
+	// Create command handler for non-interactive SSH commands
+	cmdHandler := NewCommandHandler(repo, loader, sshCfg.FeedGenerator)
 
 	s := &SSHServer{
 		repo:        repo,
@@ -57,6 +62,7 @@ func NewSSHServer(host string, port int, hostKeyPath string, repo *storage.PostR
 		theme:       t,
 		config:      tuiCfg,
 		rateLimiter: rateLimiter,
+		cmdHandler:  cmdHandler,
 		host:        host,
 		port:        port,
 	}
@@ -75,6 +81,7 @@ func NewSSHServer(host string, port int, hostKeyPath string, repo *storage.PostR
 		}),
 		wish.WithMiddleware(
 			exitMessageMiddleware(sshCfg.ExitMessage),
+			s.commandMiddleware(), // Handle non-interactive commands
 			bubbletea.Middleware(s.teaHandler),
 			activeterm.Middleware(),
 			RateLimitMiddleware(rateLimiter),
@@ -173,6 +180,37 @@ func exitMessageMiddleware(message string) wish.Middleware {
 				wish.Println(sess, msg)
 				wish.Println(sess, "")
 			}
+		}
+	}
+}
+
+// commandMiddleware handles non-interactive SSH commands
+// If a command is provided, it's handled directly without launching the TUI
+func (s *SSHServer) commandMiddleware() wish.Middleware {
+	return func(next ssh.Handler) ssh.Handler {
+		return func(sess ssh.Session) {
+			cmd := sess.Command()
+
+			// If no command, proceed to TUI
+			if len(cmd) == 0 {
+				next(sess)
+				return
+			}
+
+			// Handle the command
+			handled, err := s.cmdHandler.HandleCommand(sess, cmd)
+			if err != nil {
+				wish.Fatalln(sess, fmt.Sprintf("Error: %v", err))
+				return
+			}
+
+			// If command wasn't handled, proceed to TUI
+			if !handled {
+				next(sess)
+				return
+			}
+
+			// Command was handled, session will close
 		}
 	}
 }
