@@ -79,8 +79,9 @@ func NewHTTPServer(host string, port int, repo *storage.PostRepository, loader *
 
 	mux := http.NewServeMux()
 
-	// Static files
-	mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.FS(staticFS))))
+	// Static files with long cache (immutable embedded assets)
+	staticHandler := http.StripPrefix("/static/", http.FileServer(http.FS(staticFS)))
+	mux.Handle("/static/", cacheControlMiddleware(staticHandler, "public, max-age=31536000, immutable"))
 
 	// Routes
 	mux.HandleFunc("/", s.handleIndex)
@@ -158,6 +159,7 @@ func (s *HTTPServer) handleRSSFeed(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/rss+xml; charset=utf-8")
+	w.Header().Set("Cache-Control", "public, max-age=3600") // Cache for 1 hour
 	w.Write([]byte(rss))
 }
 
@@ -189,6 +191,7 @@ func (s *HTTPServer) handleJSONFeed(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/feed+json; charset=utf-8")
+	w.Header().Set("Cache-Control", "public, max-age=3600") // Cache for 1 hour
 	w.Write([]byte(jsonFeed))
 }
 
@@ -283,6 +286,7 @@ func (s *HTTPServer) handleArchive(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Cache-Control", "public, max-age=300") // Cache for 5 minutes
 	if err := s.templates["archive.html"].Execute(w, data); err != nil {
 		log.Printf("Failed to execute archive template: %v", err)
 	}
@@ -346,6 +350,7 @@ func (s *HTTPServer) handlePost(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Cache-Control", "public, max-age=3600") // Cache for 1 hour
 	if err := s.templates["post.html"].Execute(w, data); err != nil {
 		log.Printf("Failed to execute post template: %v", err)
 	}
@@ -406,9 +411,18 @@ func (s *HTTPServer) handleTag(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Cache-Control", "public, max-age=300") // Cache for 5 minutes
 	if err := s.templates["tag.html"].Execute(w, data); err != nil {
 		log.Printf("Failed to execute tag template: %v", err)
 	}
+}
+
+// cacheControlMiddleware wraps an http.Handler to add Cache-Control headers
+func cacheControlMiddleware(next http.Handler, cacheControl string) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", cacheControl)
+		next.ServeHTTP(w, r)
+	})
 }
 
 var upgrader = websocket.Upgrader{
