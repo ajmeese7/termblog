@@ -217,6 +217,20 @@ func runServe(sshOnly, httpOnly bool) error {
 		log.Printf("Warning: failed to sync posts: %v", err)
 	}
 
+	// Start file watcher for auto-sync
+	watcher, err := storage.NewContentWatcher(appInstance.ContentPath(), func() error {
+		return syncPosts(loader, repo)
+	})
+	if err != nil {
+		log.Printf("Warning: failed to create file watcher: %v", err)
+	} else {
+		if err := watcher.Start(); err != nil {
+			log.Printf("Warning: failed to start file watcher: %v", err)
+		} else {
+			defer watcher.Stop()
+		}
+	}
+
 	tuiConfig := tui.Config{
 		BlogTitle: cfg.Blog.Title,
 		Author:    cfg.Blog.Author,
