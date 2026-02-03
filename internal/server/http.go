@@ -84,7 +84,7 @@ func NewHTTPServer(host string, port int, repo *storage.PostRepository, loader *
 
 	// Routes
 	mux.HandleFunc("/", s.handleIndex)
-	mux.HandleFunc("/ws", s.handleWebSocket)
+	mux.HandleFunc("/ws", s.handleWebSocket) // WebSocket - not compressed
 	mux.HandleFunc("/feed.xml", s.handleRSSFeed)
 	mux.HandleFunc("/feed.json", s.handleJSONFeed)
 	mux.HandleFunc("/sitemap.xml", s.handleSitemap)
@@ -94,9 +94,12 @@ func NewHTTPServer(host string, port int, repo *storage.PostRepository, loader *
 	mux.HandleFunc("/posts/", s.handlePost)
 	mux.HandleFunc("/tags/", s.handleTag)
 
+	// Wrap mux with gzip compression middleware
+	handler := GzipMiddleware(mux)
+
 	s.server = &http.Server{
 		Addr:         fmt.Sprintf("%s:%d", host, port),
-		Handler:      mux,
+		Handler:      handler,
 		ReadTimeout:  15 * time.Second,
 		WriteTimeout: 15 * time.Second,
 		IdleTimeout:  60 * time.Second,
