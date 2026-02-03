@@ -7,10 +7,12 @@ This document describes how to create and publish releases for TermBlog.
 TermBlog uses [Semantic Versioning](https://semver.org/) and automated releases via GitHub Actions and GoReleaser.
 
 When you push a version tag (e.g., `v0.1.0`), GitHub Actions automatically:
-1. Builds binaries for Linux and macOS (amd64 and arm64)
+1. Builds binaries for Linux (amd64 and arm64)
 2. Generates a changelog from commit messages
 3. Creates a GitHub Release with downloadable assets
 4. Publishes checksums for verification
+
+> **Note:** macOS binaries are not currently built due to CGO cross-compilation complexity. macOS users can build from source with `go install`.
 
 ## Version Numbering
 
@@ -102,7 +104,7 @@ chore: update dependencies
 
 After a release, users can install TermBlog via:
 
-### Download Binary
+### Download Binary (Linux)
 
 ```bash
 # Linux (amd64)
@@ -111,14 +113,6 @@ sudo mv termblog /usr/local/bin/
 
 # Linux (arm64)
 curl -sSL https://github.com/ajmeese7/termblog/releases/latest/download/termblog_VERSION_linux_arm64.tar.gz | tar xz
-sudo mv termblog /usr/local/bin/
-
-# macOS (Apple Silicon)
-curl -sSL https://github.com/ajmeese7/termblog/releases/latest/download/termblog_VERSION_darwin_arm64.tar.gz | tar xz
-sudo mv termblog /usr/local/bin/
-
-# macOS (Intel)
-curl -sSL https://github.com/ajmeese7/termblog/releases/latest/download/termblog_VERSION_darwin_amd64.tar.gz | tar xz
 sudo mv termblog /usr/local/bin/
 ```
 
@@ -192,10 +186,23 @@ Then fix the issue and create a new tag.
 # Install goreleaser
 go install github.com/goreleaser/goreleaser/v2@latest
 
-# Test the config (no publish)
+# Validate the config
 goreleaser check
-goreleaser release --snapshot --clean
+
+# Dry run (builds locally, no publish)
+# Note: Requires cross-compilation toolchain for arm64
+goreleaser release --snapshot --clean --skip=publish
 ```
+
+### Preview Changelog Format
+
+To see what the changelog will look like without running a full build:
+
+```bash
+git log --oneline v0.1.0 --format="* %s ([\`%h\`](https://github.com/ajmeese7/termblog/commit/%H))"
+```
+
+Replace `v0.1.0` with your current tag or `HEAD` to preview.
 
 ## File Reference
 

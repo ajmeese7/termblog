@@ -59,11 +59,13 @@ snapshot:
 changelog:
   sort: asc
   use: github
+  format: "* {{ .Message }} ([`{{ .AbbrevHash }}`](https://github.com/ajmeese7/termblog/commit/{{ .SHA }}))"
   filters:
     exclude:
-      - '^docs:'
       - '^test:'
       - '^chore:'
+      - '^Initial commit'
+      - '^MVP:'
       - Merge pull request
       - Merge branch
   groups:
@@ -73,8 +75,6 @@ changelog:
     - title: Bug Fixes
       regexp: '^.*?fix(\([[:word:]]+\))??!?:.+$'
       order: 1
-    - title: Other
-      order: 999
 
 release:
   github:
@@ -84,23 +84,6 @@ release:
   prerelease: auto
   name_template: "v{{.Version}}"
   header: |
-    ## TermBlog v{{.Version}}
-
-    ### Installation
-
-    **Download binary:**
-    ```bash
-    # Linux (amd64)
-    curl -sSL https://github.com/ajmeese7/termblog/releases/download/v{{.Version}}/termblog_{{.Version}}_linux_amd64.tar.gz | tar xz
-
-    # Linux (arm64)
-    curl -sSL https://github.com/ajmeese7/termblog/releases/download/v{{.Version}}/termblog_{{.Version}}_linux_arm64.tar.gz | tar xz
-    ```
-
-    **Or build from source (any platform):**
-    ```bash
-    go install github.com/ajmeese7/termblog/cmd/termblog@v{{.Version}}
-    ```
+    See [README](https://github.com/ajmeese7/termblog#installation) for installation instructions.
   footer: |
-    ---
-    **Full Changelog**: https://github.com/ajmeese7/termblog/compare/{{ .PreviousTag }}...{{ .Tag }}
+    {{ if .PreviousTag }}**Full Changelog**: https://github.com/ajmeese7/termblog/compare/{{ .PreviousTag }}...{{ .Tag }}{{ else }}**Full Changelog**: https://github.com/ajmeese7/termblog/commits/{{ .Tag }}{{ end }}
