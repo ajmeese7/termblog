@@ -59,7 +59,7 @@ snapshot:
 changelog:
   sort: asc
   use: github
-  format: "* {{ .Message }} ([`{{ .AbbrevHash }}`](https://github.com/ajmeese7/termblog/commit/{{ .SHA }}))"
+  format: "* {{ .Message }} ([`{{ printf \"%.7s\" .SHA }}`](https://github.com/ajmeese7/termblog/commit/{{ .SHA }}))"
   filters:
     exclude:
       - '^test:'
