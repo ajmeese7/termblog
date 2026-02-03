@@ -10,7 +10,7 @@ A self-hosted, terminal-based blogging platform. Read and write blog posts throu
 - **Markdown Posts** - Write in Markdown with YAML frontmatter
 - **Vim-style Navigation** - `j/k`, `ctrl+d/u`, `gg/G`, and more
 - **Full-text Search** - Search across titles and tags
-- **Theming** - Built-in themes (Pip-Boy, Dracula, Nord, Monokai) plus custom YAML themes
+- **Theming** - 8 built-in themes (Pip-Boy, Dracula, Nord, Monokai, Monochrome, Amber, Matrix, Paper) plus custom YAML themes
 - **Single Binary** - No external runtime dependencies
 
 ## Installation
@@ -65,7 +65,23 @@ open http://localhost:8080
 | `termblog serve --http-only` | Start HTTP server only |
 | `termblog new "Post Title"` | Create a new post |
 | `termblog sync` | Sync markdown files to database |
+| `termblog publish <slug>` | Publish a draft post |
+| `termblog unpublish <slug>` | Revert published post to draft |
+| `termblog delete <slug>` | Delete a post (use `-r` to remove file) |
+| `termblog list` | List all posts with status |
+| `termblog schedule <slug> <date>` | Schedule post for future |
 | `termblog version` | Show version info |
+
+### SSH Commands (Non-Interactive)
+
+You can pipe data directly via SSH:
+
+```bash
+ssh blog.example.com posts              # List all posts
+ssh blog.example.com read my-post       # Get raw markdown
+ssh blog.example.com rss > feed.xml     # Export RSS feed
+ssh blog.example.com search golang      # Search posts
+```
 
 ## Configuration
 
@@ -122,6 +138,7 @@ Your content here...
 | `enter` / `l` | Select/Open post |
 | `esc` / `h` | Go back |
 | `/` | Search |
+| `t` | Theme selector |
 | `?` | Toggle help |
 | `q` | Quit |
 
