@@ -65,22 +65,41 @@
             font-family: monospace;
             font-size: 12px;
             border-radius: 3px;
+            z-index: 100;
+            transition: opacity 0.3s ease, background-color 0.3s ease;
         }
 
         #status.connected {
             background-color: #003300;
             color: #00ff00;
-			z-index: 2;
+            opacity: 0.7;
+        }
+
+        #status.connected:hover {
+            opacity: 1;
+        }
+
+        #status.connected.fade-out {
+            opacity: 0;
+            pointer-events: none;
         }
 
         #status.disconnected {
             background-color: #330000;
             color: #ff3333;
+            opacity: 1;
         }
 
         #status.connecting {
             background-color: #333300;
             color: #ffcc00;
+            opacity: 1;
+        }
+
+        #status.reconnecting {
+            background-color: #332200;
+            color: #ff9900;
+            opacity: 1;
         }
     </style>
 </head>
@@ -140,10 +159,11 @@
         const terminalElement = document.getElementById("terminal");
         term.open(terminalElement);
 
-        // WebSocket connection
+        // WebSocket connection with exponential backoff
         let ws;
         let reconnectAttempts = 0;
         const maxReconnectAttempts = 5;
+        const baseReconnectDelay = 1000; // 1 second base delay
 
         // Fit terminal to container
         function fitTerminal() {
@@ -154,10 +174,32 @@
         fitTerminal();
         window.addEventListener("resize", fitTerminal);
 
-        function setStatus(status) {
+        let statusFadeTimeout = null;
+
+        function setStatus(status, detail) {
             const statusEl = document.getElementById("status");
+
+            // Clear any pending fade timeout
+            if (statusFadeTimeout) {
+                clearTimeout(statusFadeTimeout);
+                statusFadeTimeout = null;
+            }
+
             statusEl.className = status;
-            statusEl.textContent = status.charAt(0).toUpperCase() + status.slice(1);
+
+            // Set status text with optional detail
+            let text = status.charAt(0).toUpperCase() + status.slice(1);
+            if (detail) {
+                text += ` (${detail})`;
+            }
+            statusEl.textContent = text;
+
+            // Fade out connected status after 3 seconds
+            if (status === "connected") {
+                statusFadeTimeout = setTimeout(() => {
+                    statusEl.classList.add("fade-out");
+                }, 3000);
+            }
         }
 
         function connect() {
@@ -186,12 +228,20 @@
             ws.onclose = function() {
                 setStatus("disconnected");
 
-                // Attempt reconnection
+                // Attempt reconnection with exponential backoff
                 if (reconnectAttempts < maxReconnectAttempts) {
                     reconnectAttempts++;
-                    setTimeout(connect, 2000 * reconnectAttempts);
+                    // Exponential backoff: 1s, 2s, 4s, 8s, 16s (with jitter)
+                    const delay = baseReconnectDelay * Math.pow(2, reconnectAttempts - 1);
+                    const jitter = Math.random() * 500; // Add up to 500ms jitter
+                    const totalDelay = delay + jitter;
+
+                    setStatus("reconnecting", `attempt ${reconnectAttempts}/${maxReconnectAttempts}`);
+                    term.write(`\r\n\x1b[33mReconnecting in ${Math.round(totalDelay / 1000)}s (attempt ${reconnectAttempts}/${maxReconnectAttempts})...\x1b[0m\r\n`);
+
+                    setTimeout(connect, totalDelay);
                 } else {
-                    term.write("\r\n\x1b[31mConnection lost. Refresh to reconnect.\x1b[0m\r\n");
+                    term.write("\r\n\x1b[31mConnection lost. Refresh the page to reconnect.\x1b[0m\r\n");
                 }
             };
 
