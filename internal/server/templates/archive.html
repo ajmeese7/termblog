@@ -5,10 +5,18 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Archive - {{.BlogTitle}}</title>
     <meta name="description" content="{{.BlogDescription}}">
-    <meta property="og:title" content="{{.BlogTitle}}">
+    <!-- OpenGraph -->
+    <meta property="og:title" content="Archive - {{.BlogTitle}}">
     <meta property="og:description" content="{{.BlogDescription}}">
     <meta property="og:type" content="website">
+    <meta property="og:url" content="{{.BaseURL}}/archive">
+    <meta property="og:site_name" content="{{.BlogTitle}}">
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="Archive - {{.BlogTitle}}">
+    <meta name="twitter:description" content="{{.BlogDescription}}">
     <link rel="alternate" type="application/rss+xml" title="RSS Feed" href="/feed.xml">
+    <link rel="canonical" href="{{.BaseURL}}/archive">
     <style>
         :root {
             --bg: #0a0a0a;

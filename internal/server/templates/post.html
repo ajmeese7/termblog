@@ -5,11 +5,21 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{.Post.Title}} - {{.BlogTitle}}</title>
     <meta name="description" content="{{.Post.Description}}">
+    <!-- OpenGraph -->
     <meta property="og:title" content="{{.Post.Title}}">
     <meta property="og:description" content="{{.Post.Description}}">
     <meta property="og:type" content="article">
     <meta property="og:url" content="{{.BaseURL}}/posts/{{.Post.Slug}}">
+    <meta property="og:site_name" content="{{.BlogTitle}}">
+    {{if .Post.PublishedAt}}<meta property="article:published_time" content="{{.Post.PublishedAt.Format "2006-01-02T15:04:05Z07:00"}}">{{end}}
+    {{if .Post.Author}}<meta property="article:author" content="{{.Post.Author}}">{{end}}
+    {{range .Post.Tags}}<meta property="article:tag" content="{{.}}">{{end}}
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="{{.Post.Title}}">
+    <meta name="twitter:description" content="{{.Post.Description}}">
     <link rel="alternate" type="application/rss+xml" title="RSS Feed" href="/feed.xml">
+    <link rel="canonical" href="{{.BaseURL}}/posts/{{.Post.Slug}}">
     <style>
         :root {
             --bg: #0a0a0a;

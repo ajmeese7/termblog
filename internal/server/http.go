@@ -270,10 +270,12 @@ func (s *HTTPServer) handleArchive(w http.ResponseWriter, r *http.Request) {
 	data := struct {
 		BlogTitle       string
 		BlogDescription string
+		BaseURL         string
 		Posts           []*blog.Post
 	}{
 		BlogTitle:       s.blogTitle,
 		BlogDescription: s.blogDescription,
+		BaseURL:         s.feed.BaseURL(),
 		Posts:           blogPosts,
 	}
 
@@ -390,10 +392,12 @@ func (s *HTTPServer) handleTag(w http.ResponseWriter, r *http.Request) {
 
 	data := struct {
 		BlogTitle string
+		BaseURL   string
 		Tag       string
 		Posts     []*blog.Post
 	}{
 		BlogTitle: s.blogTitle,
+		BaseURL:   s.feed.BaseURL(),
 		Tag:       tag,
 		Posts:     blogPosts,
 	}
