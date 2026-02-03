@@ -53,6 +53,13 @@ func (l *ContentLoader) ParsePost(content string, filePath string) (*Post, error
 	// Generate slug from filename
 	slug := l.slugFromFilename(filePath)
 
+	// Calculate reading time (avg 200 words per minute, minimum 1 minute)
+	wordCount := len(strings.Fields(body))
+	readingTime := wordCount / 200
+	if readingTime < 1 {
+		readingTime = 1
+	}
+
 	post := &Post{
 		Slug:        slug,
 		Title:       frontmatter.Title,
@@ -62,6 +69,7 @@ func (l *ContentLoader) ParsePost(content string, filePath string) (*Post, error
 		Tags:        frontmatter.Tags,
 		Draft:       frontmatter.Draft,
 		Filepath:    filePath,
+		ReadingTime: readingTime,
 	}
 
 	// Parse dates

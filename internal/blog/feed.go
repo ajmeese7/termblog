@@ -25,6 +25,11 @@ func NewFeedGenerator(title, description, author, baseURL string) *FeedGenerator
 	}
 }
 
+// BaseURL returns the base URL for the feed
+func (g *FeedGenerator) BaseURL() string {
+	return g.baseURL
+}
+
 // GenerateRSS generates an RSS feed from posts
 func (g *FeedGenerator) GenerateRSS(posts []*Post) (string, error) {
 	feed := g.createFeed(posts)

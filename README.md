@@ -39,6 +39,8 @@ go install github.com/ajmeese7/termblog/cmd/termblog@latest
 git clone https://github.com/ajmeese7/termblog.git
 cd termblog
 make build
+
+# Run with `./termblog serve` since it's local
 ```
 
 ## Quick Start

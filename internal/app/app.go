@@ -22,13 +22,21 @@ type BlogConfig struct {
 	Author      string `yaml:"author"`
 	BaseURL     string `yaml:"base_url"`
 	ContentDir  string `yaml:"content_dir"`
+	ExitMessage string `yaml:"exit_message"`
 }
 
 // ServerConfig holds server settings
 type ServerConfig struct {
-	SSHPort     int    `yaml:"ssh_port"`
-	HTTPPort    int    `yaml:"http_port"`
-	HostKeyPath string `yaml:"host_key_path"`
+	SSHPort     int             `yaml:"ssh_port"`
+	HTTPPort    int             `yaml:"http_port"`
+	HostKeyPath string          `yaml:"host_key_path"`
+	RateLimit   RateLimitConfig `yaml:"rate_limit"`
+}
+
+// RateLimitConfig holds rate limiting settings
+type RateLimitConfig struct {
+	Limit  int `yaml:"limit"`  // Max connections per window
+	Window int `yaml:"window"` // Window duration in seconds
 }
 
 // StorageConfig holds storage settings
@@ -50,6 +58,10 @@ func DefaultConfig() *Config {
 			SSHPort:     2222,
 			HTTPPort:    8080,
 			HostKeyPath: ".ssh/termblog_host_key",
+			RateLimit: RateLimitConfig{
+				Limit:  10, // 10 connections per minute
+				Window: 60, // 60 seconds
+			},
 		},
 		Storage: StorageConfig{
 			DatabasePath: "termblog.db",

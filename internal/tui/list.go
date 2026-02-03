@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/ajmeese7/termblog/internal/storage"
@@ -252,11 +253,17 @@ func (m *ListModel) loadPosts() tea.Cmd {
 			return postsLoadedMsg{err: err}
 		}
 
-		total, _ := m.repo.CountPublished()
+		// Filter out posts whose files no longer exist
+		validPosts := make([]*storage.Post, 0, len(posts))
+		for _, post := range posts {
+			if _, err := os.Stat(post.Filepath); err == nil {
+				validPosts = append(validPosts, post)
+			}
+		}
 
 		return postsLoadedMsg{
-			posts: posts,
-			total: total,
+			posts: validPosts,
+			total: len(validPosts),
 		}
 	}
 }

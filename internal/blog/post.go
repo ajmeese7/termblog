@@ -16,4 +16,5 @@ type Post struct {
 	CreatedAt   time.Time
 	PublishedAt *time.Time
 	Filepath    string
+	ReadingTime int // Estimated minutes to read
 }

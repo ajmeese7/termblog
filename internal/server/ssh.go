@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
@@ -20,29 +21,44 @@ import (
 	"github.com/charmbracelet/wish/activeterm"
 	"github.com/charmbracelet/wish/bubbletea"
 	"github.com/charmbracelet/wish/logging"
+	gossh "golang.org/x/crypto/ssh"
 )
 
 // SSHServer wraps the Wish SSH server
 type SSHServer struct {
-	server *ssh.Server
-	repo   *storage.PostRepository
-	loader *blog.ContentLoader
-	theme  *theme.Theme
-	config tui.Config
+	server      *ssh.Server
+	repo        *storage.PostRepository
+	prefRepo    *storage.PreferenceRepository
+	loader      *blog.ContentLoader
+	theme       *theme.Theme
+	config      tui.Config
+	rateLimiter *RateLimiter
 
 	host string
 	port int
 }
 
+// SSHConfig holds SSH server-specific configuration
+type SSHConfig struct {
+	RateLimitCount  int
+	RateLimitWindow time.Duration
+	ExitMessage     string
+}
+
 // NewSSHServer creates a new SSH server
-func NewSSHServer(host string, port int, hostKeyPath string, repo *storage.PostRepository, loader *blog.ContentLoader, t *theme.Theme, cfg tui.Config) (*SSHServer, error) {
+func NewSSHServer(host string, port int, hostKeyPath string, repo *storage.PostRepository, prefRepo *storage.PreferenceRepository, loader *blog.ContentLoader, t *theme.Theme, tuiCfg tui.Config, sshCfg SSHConfig) (*SSHServer, error) {
+	// Create rate limiter with configurable settings
+	rateLimiter := NewRateLimiter(sshCfg.RateLimitCount, sshCfg.RateLimitWindow)
+
 	s := &SSHServer{
-		repo:   repo,
-		loader: loader,
-		theme:  t,
-		config: cfg,
-		host:   host,
-		port:   port,
+		repo:        repo,
+		prefRepo:    prefRepo,
+		loader:      loader,
+		theme:       t,
+		config:      tuiCfg,
+		rateLimiter: rateLimiter,
+		host:        host,
+		port:        port,
 	}
 
 	// Ensure host key directory exists
@@ -53,9 +69,15 @@ func NewSSHServer(host string, port int, hostKeyPath string, repo *storage.PostR
 	server, err := wish.NewServer(
 		wish.WithAddress(fmt.Sprintf("%s:%d", host, port)),
 		wish.WithHostKeyPath(hostKeyPath),
+		wish.WithPublicKeyAuth(func(_ ssh.Context, _ ssh.PublicKey) bool {
+			// Accept all public keys - we just need the fingerprint for theme persistence
+			return true
+		}),
 		wish.WithMiddleware(
+			exitMessageMiddleware(sshCfg.ExitMessage),
 			bubbletea.Middleware(s.teaHandler),
 			activeterm.Middleware(),
+			RateLimitMiddleware(rateLimiter),
 			logging.Middleware(),
 		),
 	)
@@ -69,7 +91,23 @@ func NewSSHServer(host string, port int, hostKeyPath string, repo *storage.PostR
 
 // teaHandler returns a new Bubbletea program for each SSH session
 func (s *SSHServer) teaHandler(sshSession ssh.Session) (tea.Model, []tea.ProgramOption) {
-	model := tui.New(s.repo, s.loader, s.theme, s.config)
+	// Get SSH key fingerprint for theme persistence
+	fingerprint := ""
+	if pubKey := sshSession.PublicKey(); pubKey != nil {
+		fingerprint = gossh.FingerprintSHA256(pubKey)
+	}
+
+	// Load user's preferred theme
+	selectedTheme := s.theme
+	if fingerprint != "" && s.prefRepo != nil {
+		if themeName, err := s.prefRepo.GetTheme(fingerprint); err == nil {
+			if t := theme.GetTheme(themeName, ""); t != nil {
+				selectedTheme = t
+			}
+		}
+	}
+
+	model := tui.NewWithPreferences(s.repo, s.loader, selectedTheme, s.config, fingerprint, s.prefRepo)
 
 	return model, []tea.ProgramOption{
 		tea.WithAltScreen(),
@@ -85,6 +123,9 @@ func (s *SSHServer) Start() error {
 
 // Shutdown gracefully shuts down the SSH server
 func (s *SSHServer) Shutdown(ctx context.Context) error {
+	if s.rateLimiter != nil {
+		s.rateLimiter.Stop()
+	}
 	return s.server.Shutdown(ctx)
 }
 
@@ -119,4 +160,19 @@ func ensureHostKey(path string) error {
 		}
 	}
 	return nil
+}
+
+// exitMessageMiddleware displays a message after the TUI exits
+func exitMessageMiddleware(message string) wish.Middleware {
+	return func(next ssh.Handler) ssh.Handler {
+		return func(sess ssh.Session) {
+			next(sess)
+			// Print exit message after TUI closes (if configured)
+			if msg := strings.TrimSpace(message); msg != "" {
+				wish.Println(sess, "")
+				wish.Println(sess, msg)
+				wish.Println(sess, "")
+			}
+		}
+	}
 }

@@ -150,6 +150,7 @@ func runServe(sshOnly, httpOnly bool) error {
 	defer db.Close()
 
 	repo := storage.NewPostRepository(db)
+	prefRepo := storage.NewPreferenceRepository(db)
 	loader := blog.NewContentLoader(appInstance.ContentPath())
 	t := theme.GetTheme(cfg.Theme, "")
 
@@ -185,14 +186,21 @@ func runServe(sshOnly, httpOnly bool) error {
 	errCh := make(chan error, 2)
 
 	if !httpOnly {
+		sshCfg := server.SSHConfig{
+			RateLimitCount:  cfg.Server.RateLimit.Limit,
+			RateLimitWindow: time.Duration(cfg.Server.RateLimit.Window) * time.Second,
+			ExitMessage:     cfg.Blog.ExitMessage,
+		}
 		sshServer, err := server.NewSSHServer(
 			"0.0.0.0",
 			cfg.Server.SSHPort,
 			appInstance.HostKeyPath(),
 			repo,
+			prefRepo,
 			loader,
 			t,
 			tuiConfig,
+			sshCfg,
 		)
 		if err != nil {
 			return fmt.Errorf("failed to create SSH server: %w", err)
@@ -213,14 +221,19 @@ func runServe(sshOnly, httpOnly bool) error {
 	}
 
 	if !sshOnly {
-		httpServer := server.NewHTTPServer(
+		httpServer, err := server.NewHTTPServer(
 			"0.0.0.0",
 			cfg.Server.HTTPPort,
 			repo,
 			loader,
 			feedGen,
 			binaryPath,
+			cfg.Blog.Title,
+			cfg.Blog.Description,
 		)
+		if err != nil {
+			return fmt.Errorf("failed to create HTTP server: %w", err)
+		}
 
 		go func() {
 			log.Printf("HTTP server listening on :%d", cfg.Server.HTTPPort)

@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Posts tagged "{{.Tag}}" - {{.BlogTitle}}</title>
+    <meta name="description" content="Posts tagged with {{.Tag}}">
+    <link rel="alternate" type="application/rss+xml" title="RSS Feed" href="/feed.xml">
+    <style>
+        :root {
+            --bg: #0a0a0a;
+            --fg: #00ff00;
+            --muted: #006600;
+            --accent: #33ff33;
+        }
+        * { box-sizing: border-box; }
+        body {
+            font-family: "Fira Code", "Cascadia Code", Menlo, Monaco, monospace;
+            background: var(--bg);
+            color: var(--fg);
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        a { color: var(--accent); }
+        a:visited { color: var(--fg); }
+        header { border-bottom: 1px solid var(--muted); padding-bottom: 10px; margin-bottom: 20px; }
+        header h1 { margin: 0; font-size: 1.2em; }
+        header nav { margin-top: 10px; font-size: 0.9em; }
+        header nav a { margin-right: 15px; }
+        h2 { margin-top: 0; }
+        .post-list { list-style: none; padding: 0; }
+        .post-list li { margin-bottom: 20px; padding-bottom: 20px; border-bottom: 1px dashed var(--muted); }
+        .post-list li:last-child { border-bottom: none; }
+        .post-title { font-size: 1.1em; margin-bottom: 5px; }
+        .post-meta { color: var(--muted); font-size: 0.9em; }
+        .empty { color: var(--muted); }
+        footer { margin-top: 40px; padding-top: 20px; border-top: 1px solid var(--muted); font-size: 0.9em; color: var(--muted); }
+    </style>
+</head>
+<body>
+    <header>
+        <h1><a href="/">{{.BlogTitle}}</a></h1>
+        <nav>
+            <a href="/">Terminal</a>
+            <a href="/archive">Archive</a>
+            <a href="/feed.xml">RSS</a>
+        </nav>
+    </header>
+    <main>
+        <h2>Posts tagged "{{.Tag}}"</h2>
+        {{if .Posts}}
+        <ul class="post-list">
+            {{range .Posts}}
+            <li>
+                <div class="post-title"><a href="/posts/{{.Slug}}">{{.Title}}</a></div>
+                <div class="post-meta">
+                    {{if .PublishedAt}}{{.PublishedAt.Format "January 2, 2006"}}{{end}}
+                    {{if .ReadingTime}} · {{.ReadingTime}} min read{{end}}
+                </div>
+            </li>
+            {{end}}
+        </ul>
+        {{else}}
+        <p class="empty">No posts with this tag.</p>
+        {{end}}
+    </main>
+    <footer>
+        <a href="/archive">← Back to archive</a>
+    </footer>
+</body>
+</html>

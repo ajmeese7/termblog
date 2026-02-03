@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"log"
 	"strings"
 	"time"
 
@@ -106,16 +107,18 @@ type Config struct {
 // Model is the root Bubbletea model
 type Model struct {
 	// Dependencies
-	repo   *storage.PostRepository
-	loader *blog.ContentLoader
-	styles *theme.Styles
-	keyMap KeyMap
-	config Config
+	repo     *storage.PostRepository
+	prefRepo *storage.PreferenceRepository
+	loader   *blog.ContentLoader
+	styles   *theme.Styles
+	keyMap   KeyMap
+	config   Config
 
 	// Theme state
-	themes     []*theme.Theme
-	themeNames []string
-	themeIndex int
+	themes      []*theme.Theme
+	themeNames  []string
+	themeIndex  int
+	fingerprint string // SSH key fingerprint for theme persistence
 
 	// View state
 	currentView View
@@ -140,6 +143,11 @@ type Model struct {
 
 // New creates a new root model
 func New(repo *storage.PostRepository, loader *blog.ContentLoader, t *theme.Theme, cfg Config) *Model {
+	return NewWithPreferences(repo, loader, t, cfg, "", nil)
+}
+
+// NewWithPreferences creates a new root model with theme persistence support
+func NewWithPreferences(repo *storage.PostRepository, loader *blog.ContentLoader, t *theme.Theme, cfg Config, fingerprint string, prefRepo *storage.PreferenceRepository) *Model {
 	styles := theme.NewStyles(t)
 
 	// Build theme list for cycling
@@ -156,6 +164,7 @@ func New(repo *storage.PostRepository, loader *blog.ContentLoader, t *theme.Them
 
 	m := &Model{
 		repo:        repo,
+		prefRepo:    prefRepo,
 		loader:      loader,
 		styles:      styles,
 		keyMap:      DefaultKeyMap(),
@@ -163,6 +172,7 @@ func New(repo *storage.PostRepository, loader *blog.ContentLoader, t *theme.Them
 		themes:      themes,
 		themeNames:  themeNames,
 		themeIndex:  currentIndex,
+		fingerprint: fingerprint,
 		currentView: ViewList,
 	}
 
@@ -407,6 +417,13 @@ func (m *Model) cycleTheme() tea.Cmd {
 	m.list.styles = m.styles
 	m.reader.SetTheme(m.styles, m.themeNames[m.themeIndex])
 	m.search.styles = m.styles
+
+	// Save theme preference if we have a fingerprint
+	if m.fingerprint != "" && m.prefRepo != nil {
+		if err := m.prefRepo.SetTheme(m.fingerprint, m.themeNames[m.themeIndex]); err != nil {
+			log.Printf("Failed to save theme preference: %v", err)
+		}
+	}
 
 	// Show theme name temporarily
 	m.statusMsg = "Theme: " + newTheme.Name

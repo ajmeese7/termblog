@@ -17,6 +17,10 @@ blog:
   # Directory containing markdown posts (relative to config file)
   content_dir: "content/posts"
 
+  # Message shown after exiting the SSH session (supports multiple lines)
+  exit_message: |
+    Thanks for visiting! Check out the web version at https://example.com
+
 server:
   # SSH server port (connect via: ssh localhost -p 2222)
   ssh_port: 2222
@@ -26,6 +30,13 @@ server:
 
   # Path to SSH host key (auto-generated if missing)
   host_key_path: ".ssh/termblog_host_key"
+
+  # Rate limiting for SSH connections
+  rate_limit:
+    # Maximum connections per IP within the window
+    limit: 10
+    # Window duration in seconds
+    window: 60
 
 storage:
   # SQLite database path (relative to config file)

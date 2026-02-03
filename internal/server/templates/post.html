@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{.Post.Title}} - {{.BlogTitle}}</title>
+    <meta name="description" content="{{.Post.Description}}">
+    <meta property="og:title" content="{{.Post.Title}}">
+    <meta property="og:description" content="{{.Post.Description}}">
+    <meta property="og:type" content="article">
+    <meta property="og:url" content="{{.BaseURL}}/posts/{{.Post.Slug}}">
+    <link rel="alternate" type="application/rss+xml" title="RSS Feed" href="/feed.xml">
+    <style>
+        :root {
+            --bg: #0a0a0a;
+            --fg: #00ff00;
+            --muted: #006600;
+            --accent: #33ff33;
+        }
+        * { box-sizing: border-box; }
+        body {
+            font-family: "Fira Code", "Cascadia Code", Menlo, Monaco, monospace;
+            background: var(--bg);
+            color: var(--fg);
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        a { color: var(--accent); }
+        a:visited { color: var(--fg); }
+        header { border-bottom: 1px solid var(--muted); padding-bottom: 10px; margin-bottom: 20px; }
+        header h1 { margin: 0; font-size: 1.2em; }
+        header nav { margin-top: 10px; font-size: 0.9em; }
+        header nav a { margin-right: 15px; }
+        article h1 { margin-top: 0; }
+        .meta { color: var(--muted); font-size: 0.9em; margin-bottom: 20px; }
+        .tags a { margin-right: 8px; }
+        .content { margin-top: 30px; }
+        .content h1, .content h2, .content h3 { color: var(--accent); margin-top: 1.5em; }
+        .content pre { background: #111; padding: 15px; overflow-x: auto; border: 1px solid var(--muted); }
+        .content code { background: #111; padding: 2px 6px; }
+        .content pre code { padding: 0; background: none; }
+        .content blockquote { border-left: 3px solid var(--muted); margin-left: 0; padding-left: 15px; color: var(--muted); }
+        .content img { max-width: 100%; }
+        .content ul, .content ol { padding-left: 20px; }
+        footer { margin-top: 40px; padding-top: 20px; border-top: 1px solid var(--muted); font-size: 0.9em; color: var(--muted); }
+    </style>
+</head>
+<body>
+    <header>
+        <h1><a href="/">{{.BlogTitle}}</a></h1>
+        <nav>
+            <a href="/">Terminal</a>
+            <a href="/archive">Archive</a>
+            <a href="/feed.xml">RSS</a>
+        </nav>
+    </header>
+    <article>
+        <h1>{{.Post.Title}}</h1>
+        <div class="meta">
+            {{if .Post.PublishedAt}}{{.Post.PublishedAt.Format "January 2, 2006"}}{{end}}
+            {{if .Post.ReadingTime}} · {{.Post.ReadingTime}} min read{{end}}
+        </div>
+        {{if .Post.Tags}}
+        <div class="tags">
+            Tags: {{range .Post.Tags}}<a href="/tags/{{. | lower}}">{{.}}</a>{{end}}
+        </div>
+        {{end}}
+        <div class="content">{{.Content}}</div>
+    </article>
+    <footer>
+        <a href="/archive">← Back to archive</a>
+    </footer>
+</body>
+</html>

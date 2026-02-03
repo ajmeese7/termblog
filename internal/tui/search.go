@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/ajmeese7/termblog/internal/blog"
@@ -224,9 +225,20 @@ func (m *SearchModel) performSearch() tea.Cmd {
 
 	return func() tea.Msg {
 		results, err := m.repo.Search(query, 20)
+		if err != nil {
+			return searchResultsMsg{err: err}
+		}
+
+		// Filter out posts whose files no longer exist
+		validResults := make([]*storage.Post, 0, len(results))
+		for _, post := range results {
+			if _, err := os.Stat(post.Filepath); err == nil {
+				validResults = append(validResults, post)
+			}
+		}
+
 		return searchResultsMsg{
-			results: results,
-			err:     err,
+			results: validResults,
 		}
 	}
 }
