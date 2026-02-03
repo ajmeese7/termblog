@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
@@ -39,6 +40,10 @@ func main() {
 	rootCmd.AddCommand(ptyCmd())
 	rootCmd.AddCommand(syncCmd())
 	rootCmd.AddCommand(publishCmd())
+	rootCmd.AddCommand(unpublishCmd())
+	rootCmd.AddCommand(deleteCmd())
+	rootCmd.AddCommand(listCmd())
+	rootCmd.AddCommand(scheduleCmd())
 	rootCmd.AddCommand(versionCmd())
 
 	if err := rootCmd.Execute(); err != nil {
@@ -107,6 +112,59 @@ func publishCmd() *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runPublish(args[0])
+		},
+	}
+}
+
+func unpublishCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "unpublish <slug>",
+		Short: "Unpublish a post",
+		Long:  "Revert a published post to draft status.",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runUnpublish(args[0])
+		},
+	}
+}
+
+func deleteCmd() *cobra.Command {
+	var removeFile bool
+
+	cmd := &cobra.Command{
+		Use:   "delete <slug>",
+		Short: "Delete a post",
+		Long:  "Delete a post from the database and optionally from the filesystem.",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runDelete(args[0], removeFile)
+		},
+	}
+
+	cmd.Flags().BoolVarP(&removeFile, "remove-file", "r", false, "Also delete the markdown file")
+
+	return cmd
+}
+
+func listCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "list",
+		Short: "List all posts",
+		Long:  "List all posts with their status (draft/published/scheduled).",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runList()
+		},
+	}
+}
+
+func scheduleCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "schedule <slug> <datetime>",
+		Short: "Schedule a post for publication",
+		Long:  "Schedule a post for future publication. Datetime format: YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS",
+		Args:  cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runSchedule(args[0], args[1])
 		},
 	}
 }
@@ -399,6 +457,176 @@ func runPublish(slug string) error {
 	}
 
 	fmt.Printf("Published: %s\n", post.Title)
+	return nil
+}
+
+func runUnpublish(slug string) error {
+	appInstance, err := app.New(cfgFile)
+	if err != nil {
+		return fmt.Errorf("failed to create app: %w", err)
+	}
+
+	db, err := storage.Open(appInstance.DatabasePath())
+	if err != nil {
+		return fmt.Errorf("failed to open database: %w", err)
+	}
+	defer db.Close()
+
+	repo := storage.NewPostRepository(db)
+
+	post, err := repo.GetBySlug(slug)
+	if err != nil {
+		return fmt.Errorf("failed to find post: %w", err)
+	}
+	if post == nil {
+		return fmt.Errorf("post not found: %s", slug)
+	}
+
+	if post.Status == storage.StatusDraft {
+		fmt.Printf("Post '%s' is already a draft.\n", post.Title)
+		return nil
+	}
+
+	post.Status = storage.StatusDraft
+	post.PublishedAt = nil
+
+	if err := repo.Update(post); err != nil {
+		return fmt.Errorf("failed to update post: %w", err)
+	}
+
+	fmt.Printf("Unpublished: %s (now a draft)\n", post.Title)
+	return nil
+}
+
+func runDelete(slug string, removeFile bool) error {
+	appInstance, err := app.New(cfgFile)
+	if err != nil {
+		return fmt.Errorf("failed to create app: %w", err)
+	}
+
+	db, err := storage.Open(appInstance.DatabasePath())
+	if err != nil {
+		return fmt.Errorf("failed to open database: %w", err)
+	}
+	defer db.Close()
+
+	repo := storage.NewPostRepository(db)
+
+	post, err := repo.GetBySlug(slug)
+	if err != nil {
+		return fmt.Errorf("failed to find post: %w", err)
+	}
+	if post == nil {
+		return fmt.Errorf("post not found: %s", slug)
+	}
+
+	// Delete from database
+	if err := repo.Delete(post.ID); err != nil {
+		return fmt.Errorf("failed to delete post from database: %w", err)
+	}
+
+	fmt.Printf("Deleted from database: %s\n", post.Title)
+
+	// Optionally delete the file
+	if removeFile && post.Filepath != "" {
+		if err := os.Remove(post.Filepath); err != nil {
+			if os.IsNotExist(err) {
+				fmt.Printf("File already deleted: %s\n", post.Filepath)
+			} else {
+				return fmt.Errorf("failed to delete file: %w", err)
+			}
+		} else {
+			fmt.Printf("Deleted file: %s\n", post.Filepath)
+		}
+	}
+
+	return nil
+}
+
+func runList() error {
+	appInstance, err := app.New(cfgFile)
+	if err != nil {
+		return fmt.Errorf("failed to create app: %w", err)
+	}
+
+	db, err := storage.Open(appInstance.DatabasePath())
+	if err != nil {
+		return fmt.Errorf("failed to open database: %w", err)
+	}
+	defer db.Close()
+
+	repo := storage.NewPostRepository(db)
+
+	posts, err := repo.ListAll(1000, 0)
+	if err != nil {
+		return fmt.Errorf("failed to list posts: %w", err)
+	}
+
+	if len(posts) == 0 {
+		fmt.Println("No posts found.")
+		return nil
+	}
+
+	// Print header
+	fmt.Printf("%-12s  %-20s  %s\n", "STATUS", "SLUG", "TITLE")
+	fmt.Println(strings.Repeat("-", 60))
+
+	for _, post := range posts {
+		status := string(post.Status)
+		if post.Status == storage.StatusScheduled && post.PublishedAt != nil {
+			status = fmt.Sprintf("scheduled (%s)", post.PublishedAt.Format("2006-01-02"))
+		}
+		fmt.Printf("%-12s  %-20s  %s\n", status, post.Slug, post.Title)
+	}
+
+	return nil
+}
+
+func runSchedule(slug, datetime string) error {
+	appInstance, err := app.New(cfgFile)
+	if err != nil {
+		return fmt.Errorf("failed to create app: %w", err)
+	}
+
+	db, err := storage.Open(appInstance.DatabasePath())
+	if err != nil {
+		return fmt.Errorf("failed to open database: %w", err)
+	}
+	defer db.Close()
+
+	repo := storage.NewPostRepository(db)
+
+	post, err := repo.GetBySlug(slug)
+	if err != nil {
+		return fmt.Errorf("failed to find post: %w", err)
+	}
+	if post == nil {
+		return fmt.Errorf("post not found: %s", slug)
+	}
+
+	// Parse datetime (supports YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS)
+	var publishAt time.Time
+	if len(datetime) == 10 {
+		publishAt, err = time.Parse("2006-01-02", datetime)
+	} else {
+		publishAt, err = time.Parse("2006-01-02T15:04:05", datetime)
+	}
+	if err != nil {
+		return fmt.Errorf("invalid datetime format (use YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS): %w", err)
+	}
+
+	if publishAt.Before(time.Now()) {
+		return fmt.Errorf("scheduled time must be in the future")
+	}
+
+	post.Status = storage.StatusScheduled
+	post.PublishedAt = &publishAt
+
+	if err := repo.Update(post); err != nil {
+		return fmt.Errorf("failed to update post: %w", err)
+	}
+
+	fmt.Printf("Scheduled: %s for %s\n", post.Title, publishAt.Format("2006-01-02 15:04:05"))
 	return nil
 }
 
