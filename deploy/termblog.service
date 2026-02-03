@@ -1,0 +1,33 @@
+[Unit]
+Description=TermBlog - Terminal-based blog platform
+Documentation=https://github.com/ajmeese7/termblog
+After=network.target
+
+[Service]
+Type=simple
+User=termblog
+Group=termblog
+WorkingDirectory=/opt/termblog
+
+# Binary location
+ExecStart=/opt/termblog/termblog serve
+
+# Restart configuration
+Restart=on-failure
+RestartSec=5
+
+# Security settings
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/opt/termblog
+
+# Resource limits
+LimitNOFILE=65535
+
+# Environment
+Environment=HOME=/opt/termblog
+
+[Install]
+WantedBy=multi-user.target

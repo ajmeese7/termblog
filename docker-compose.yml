@@ -1,0 +1,37 @@
+services:
+  termblog:
+    build: .
+    container_name: termblog
+    restart: unless-stopped
+    ports:
+      - "2222:2222"   # SSH
+      - "8080:8080"   # HTTP
+    volumes:
+      - ./content:/app/content
+      - ./config.yaml:/app/config.yaml:ro
+      - termblog-ssh:/app/.ssh
+      - termblog-data:/app/data
+    environment:
+      - TZ=UTC
+
+  # Optional: Caddy reverse proxy for HTTPS
+  # Uncomment to enable
+  # caddy:
+  #   image: caddy:alpine
+  #   container_name: termblog-caddy
+  #   restart: unless-stopped
+  #   ports:
+  #     - "80:80"
+  #     - "443:443"
+  #   volumes:
+  #     - ./Caddyfile:/etc/caddy/Caddyfile:ro
+  #     - caddy-data:/data
+  #     - caddy-config:/config
+  #   depends_on:
+  #     - termblog
+
+volumes:
+  termblog-ssh:
+  termblog-data:
+  # caddy-data:
+  # caddy-config:
