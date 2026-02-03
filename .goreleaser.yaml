@@ -15,7 +15,6 @@ builds:
       - CGO_ENABLED=1
     goos:
       - linux
-      - darwin
     goarch:
       - amd64
       - arm64
@@ -24,7 +23,7 @@ builds:
       - -X github.com/ajmeese7/termblog/internal/version.Version={{.Version}}
       - -X github.com/ajmeese7/termblog/internal/version.Commit={{.ShortCommit}}
       - -X github.com/ajmeese7/termblog/internal/version.Date={{.Date}}
-    # CGO is required for SQLite, so we need to handle cross-compilation
+    # CGO is required for SQLite
     overrides:
       - goos: linux
         goarch: amd64
@@ -36,16 +35,6 @@ builds:
         env:
           - CGO_ENABLED=1
           - CC=aarch64-linux-gnu-gcc
-      - goos: darwin
-        goarch: amd64
-        env:
-          - CGO_ENABLED=1
-          - CC=o64-clang
-      - goos: darwin
-        goarch: arm64
-        env:
-          - CGO_ENABLED=1
-          - CC=oa64-clang
 
 archives:
   - id: default
@@ -54,10 +43,8 @@ archives:
       {{- .Version }}_
       {{- .Os }}_
       {{- .Arch }}
-    format: tar.gz
-    format_overrides:
-      - goos: windows
-        format: zip
+    formats:
+      - tar.gz
     files:
       - README.md
       - LICENSE
@@ -106,11 +93,11 @@ release:
     # Linux (amd64)
     curl -sSL https://github.com/ajmeese7/termblog/releases/download/v{{.Version}}/termblog_{{.Version}}_linux_amd64.tar.gz | tar xz
 
-    # macOS (Apple Silicon)
-    curl -sSL https://github.com/ajmeese7/termblog/releases/download/v{{.Version}}/termblog_{{.Version}}_darwin_arm64.tar.gz | tar xz
+    # Linux (arm64)
+    curl -sSL https://github.com/ajmeese7/termblog/releases/download/v{{.Version}}/termblog_{{.Version}}_linux_arm64.tar.gz | tar xz
     ```
 
-    **Or use Go:**
+    **Or build from source (any platform):**
     ```bash
     go install github.com/ajmeese7/termblog/cmd/termblog@v{{.Version}}
     ```
