@@ -231,9 +231,24 @@ func runServe(sshOnly, httpOnly bool) error {
 		}
 	}
 
+	// Load optional ASCII header
+	var asciiHeader string
+	if cfg.Blog.ASCIIHeader != "" {
+		headerPath := cfg.Blog.ASCIIHeader
+		if !filepath.IsAbs(headerPath) {
+			headerPath = filepath.Join(appInstance.Root, headerPath)
+		}
+		if data, err := os.ReadFile(headerPath); err == nil {
+			asciiHeader = strings.TrimSpace(string(data))
+		} else {
+			log.Printf("Warning: failed to load ASCII header: %v", err)
+		}
+	}
+
 	tuiConfig := tui.Config{
-		BlogTitle: cfg.Blog.Title,
-		Author:    cfg.Blog.Author,
+		BlogTitle:   cfg.Blog.Title,
+		Author:      cfg.Blog.Author,
+		ASCIIHeader: asciiHeader,
 	}
 
 	// Get the binary path for PTY spawning
@@ -380,9 +395,22 @@ func runPTY() error {
 	loader := blog.NewContentLoader(appInstance.ContentPath())
 	t := theme.GetTheme(cfg.Theme, "")
 
+	// Load optional ASCII header
+	var asciiHeader string
+	if cfg.Blog.ASCIIHeader != "" {
+		headerPath := cfg.Blog.ASCIIHeader
+		if !filepath.IsAbs(headerPath) {
+			headerPath = filepath.Join(appInstance.Root, headerPath)
+		}
+		if data, err := os.ReadFile(headerPath); err == nil {
+			asciiHeader = strings.TrimSpace(string(data))
+		}
+	}
+
 	tuiConfig := tui.Config{
-		BlogTitle: cfg.Blog.Title,
-		Author:    cfg.Blog.Author,
+		BlogTitle:   cfg.Blog.Title,
+		Author:      cfg.Blog.Author,
+		ASCIIHeader: asciiHeader,
 	}
 
 	model := tui.New(repo, loader, t, tuiConfig)

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/ajmeese7/termblog/internal/storage"
 	"github.com/ajmeese7/termblog/internal/theme"
@@ -15,6 +16,9 @@ import (
 const (
 	postsPerPage = 10
 )
+
+// Spinner frames for loading animation
+var spinnerFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
 
 // ListModel handles the post list view
 type ListModel struct {
@@ -32,8 +36,9 @@ type ListModel struct {
 	width  int
 	height int
 
-	loading bool
-	err     error
+	loading      bool
+	spinnerFrame int
+	err          error
 }
 
 // NewListModel creates a new list model
@@ -60,9 +65,21 @@ func (m *ListModel) SetSize(width, height int) {
 	m.pageSize = max((height-4)/3, 5)
 }
 
+// spinnerTick is sent to advance the spinner animation
+type spinnerTick struct{}
+
 // Update implements tea.Model
 func (m *ListModel) Update(msg tea.Msg) (*ListModel, tea.Cmd) {
 	switch msg := msg.(type) {
+	case spinnerTick:
+		if m.loading {
+			m.spinnerFrame = (m.spinnerFrame + 1) % len(spinnerFrames)
+			return m, tea.Tick(80*time.Millisecond, func(t time.Time) tea.Msg {
+				return spinnerTick{}
+			})
+		}
+		return m, nil
+
 	case postsLoadedMsg:
 		m.loading = false
 		m.posts = msg.posts
@@ -144,7 +161,8 @@ func (m *ListModel) Update(msg tea.Msg) (*ListModel, tea.Cmd) {
 // View implements tea.Model
 func (m *ListModel) View() string {
 	if m.loading {
-		return m.styles.List.Render("Loading posts...")
+		spinner := spinnerFrames[m.spinnerFrame]
+		return m.styles.List.Render(spinner + " Loading posts...")
 	}
 
 	if m.err != nil {
@@ -247,25 +265,33 @@ func (m *ListModel) adjustOffset() {
 
 func (m *ListModel) loadPosts() tea.Cmd {
 	m.loading = true
-	return func() tea.Msg {
-		posts, err := m.repo.ListPublished(100, 0)
-		if err != nil {
-			return postsLoadedMsg{err: err}
-		}
+	m.spinnerFrame = 0
 
-		// Filter out posts whose files no longer exist
-		validPosts := make([]*storage.Post, 0, len(posts))
-		for _, post := range posts {
-			if _, err := os.Stat(post.Filepath); err == nil {
-				validPosts = append(validPosts, post)
+	// Start spinner animation and load posts concurrently
+	return tea.Batch(
+		tea.Tick(80*time.Millisecond, func(t time.Time) tea.Msg {
+			return spinnerTick{}
+		}),
+		func() tea.Msg {
+			posts, err := m.repo.ListPublished(100, 0)
+			if err != nil {
+				return postsLoadedMsg{err: err}
 			}
-		}
 
-		return postsLoadedMsg{
-			posts: validPosts,
-			total: len(validPosts),
-		}
-	}
+			// Filter out posts whose files no longer exist
+			validPosts := make([]*storage.Post, 0, len(posts))
+			for _, post := range posts {
+				if _, err := os.Stat(post.Filepath); err == nil {
+					validPosts = append(validPosts, post)
+				}
+			}
+
+			return postsLoadedMsg{
+				posts: validPosts,
+				total: len(validPosts),
+			}
+		},
+	)
 }
 
 func (m *ListModel) selectPost() tea.Cmd {

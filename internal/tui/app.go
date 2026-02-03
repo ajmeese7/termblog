@@ -101,8 +101,9 @@ func DefaultKeyMap() KeyMap {
 
 // Config holds TUI configuration
 type Config struct {
-	BlogTitle string
-	Author    string
+	BlogTitle   string
+	Author      string
+	ASCIIHeader string // Optional ASCII art for header
 }
 
 // Model is the root Bubbletea model
@@ -377,6 +378,10 @@ func (m *Model) View() string {
 }
 
 func (m *Model) renderHeader() string {
+	// Use ASCII header if provided, otherwise just the title
+	if m.config.ASCIIHeader != "" {
+		return m.styles.Header.Width(m.width).Render(m.config.ASCIIHeader)
+	}
 	title := m.styles.Title.Render(m.config.BlogTitle)
 	return m.styles.Header.Width(m.width).Render(title)
 }
