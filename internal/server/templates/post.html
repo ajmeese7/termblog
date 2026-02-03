@@ -22,10 +22,11 @@
     <link rel="canonical" href="{{.BaseURL}}/posts/{{.Post.Slug}}">
     <style>
         :root {
-            --bg: #0a0a0a;
-            --fg: #00ff00;
-            --muted: #006600;
-            --accent: #33ff33;
+            --bg: {{.Theme.Background}};
+            --fg: {{.Theme.Foreground}};
+            --muted: {{.Theme.Muted}};
+            --accent: {{.Theme.Accent}};
+            --border: {{.Theme.Border}};
         }
         * { box-sizing: border-box; }
         body {

@@ -19,6 +19,7 @@ import (
 
 	"github.com/ajmeese7/termblog/internal/blog"
 	"github.com/ajmeese7/termblog/internal/storage"
+	"github.com/ajmeese7/termblog/internal/theme"
 	"github.com/creack/pty"
 	"github.com/gorilla/websocket"
 )
@@ -41,13 +42,34 @@ type HTTPServer struct {
 	binaryPath      string
 	blogTitle       string
 	blogDescription string
+	theme           *theme.Theme
 
 	// Cached templates (parsed once at startup)
 	templates map[string]*template.Template
 }
 
+// ThemeColors holds CSS-friendly theme colors for templates
+type ThemeColors struct {
+	Background string
+	Foreground string
+	Muted      string
+	Accent     string
+	Border     string
+}
+
+// themeColors returns the theme colors for use in templates
+func (s *HTTPServer) themeColors() ThemeColors {
+	return ThemeColors{
+		Background: s.theme.Colors.Background,
+		Foreground: s.theme.Colors.Text,
+		Muted:      s.theme.Colors.Muted,
+		Accent:     s.theme.Colors.Accent,
+		Border:     s.theme.Colors.Border,
+	}
+}
+
 // NewHTTPServer creates a new HTTP server
-func NewHTTPServer(host string, port int, repo *storage.PostRepository, loader *blog.ContentLoader, feed *blog.FeedGenerator, binaryPath string, blogTitle string, blogDescription string) (*HTTPServer, error) {
+func NewHTTPServer(host string, port int, repo *storage.PostRepository, loader *blog.ContentLoader, feed *blog.FeedGenerator, binaryPath string, blogTitle string, blogDescription string, t *theme.Theme) (*HTTPServer, error) {
 	// Parse and cache templates at startup for efficiency and early error detection
 	templates := make(map[string]*template.Template)
 	templateNames := []string{"index.html", "archive.html", "post.html", "tag.html"}
@@ -74,6 +96,7 @@ func NewHTTPServer(host string, port int, repo *storage.PostRepository, loader *
 		binaryPath:      binaryPath,
 		blogTitle:       blogTitle,
 		blogDescription: blogDescription,
+		theme:           t,
 		templates:       templates,
 	}
 
@@ -278,11 +301,13 @@ func (s *HTTPServer) handleArchive(w http.ResponseWriter, r *http.Request) {
 		BlogDescription string
 		BaseURL         string
 		Posts           []*blog.Post
+		Theme           ThemeColors
 	}{
 		BlogTitle:       s.blogTitle,
 		BlogDescription: s.blogDescription,
 		BaseURL:         s.feed.BaseURL(),
 		Posts:           blogPosts,
+		Theme:           s.themeColors(),
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -342,11 +367,13 @@ func (s *HTTPServer) handlePost(w http.ResponseWriter, r *http.Request) {
 		BaseURL   string
 		Post      *blog.Post
 		Content   template.HTML
+		Theme     ThemeColors
 	}{
 		BlogTitle: s.blogTitle,
 		BaseURL:   s.feed.BaseURL(),
 		Post:      post,
 		Content:   template.HTML(htmlContent),
+		Theme:     s.themeColors(),
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -403,11 +430,13 @@ func (s *HTTPServer) handleTag(w http.ResponseWriter, r *http.Request) {
 		BaseURL   string
 		Tag       string
 		Posts     []*blog.Post
+		Theme     ThemeColors
 	}{
 		BlogTitle: s.blogTitle,
 		BaseURL:   s.feed.BaseURL(),
 		Tag:       tag,
 		Posts:     blogPosts,
+		Theme:     s.themeColors(),
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")

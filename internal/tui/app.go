@@ -180,7 +180,7 @@ func NewWithPreferences(repo *storage.PostRepository, loader *blog.ContentLoader
 	}
 
 	m.list = NewListModel(repo, styles, cfg.BlogTitle)
-	m.reader = NewReaderModel(styles)
+	m.reader = NewReaderModel(styles, themeNames[currentIndex])
 	m.search = NewSearchModel(repo, loader, styles)
 	m.themeSelector = NewThemeSelectorModel(themes, themeNames, currentIndex, styles, m.keyMap)
 

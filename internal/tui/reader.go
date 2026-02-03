@@ -31,11 +31,11 @@ type ReaderModel struct {
 }
 
 // NewReaderModel creates a new reader model
-func NewReaderModel(styles *theme.Styles) *ReaderModel {
+func NewReaderModel(styles *theme.Styles, themeName string) *ReaderModel {
 	return &ReaderModel{
 		styles:    styles,
 		keyMap:    DefaultKeyMap(),
-		themeName: "pipboy", // default theme
+		themeName: themeName,
 	}
 }
 

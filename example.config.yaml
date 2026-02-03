@@ -21,6 +21,14 @@ blog:
   exit_message: |
     Thanks for visiting! Check out the web version at https://example.com
 
+  # Message of the day shown on SSH connect (before TUI loads)
+  motd: |
+    Welcome to my blog!
+    Press ? for help, t for themes, / to search.
+
+  # Path to ASCII art file for TUI header (optional)
+  # ascii_header: "header.txt"
+
 server:
   # SSH server port (connect via: ssh localhost -p 2222)
   ssh_port: 2222
@@ -42,6 +50,6 @@ storage:
   # SQLite database path (relative to config file)
   database_path: "termblog.db"
 
-# Theme name: pipboy, dracula, nord, monokai
+# Theme name: pipboy, dracula, nord, monokai, monochrome, amber, matrix, paper
 # Or path to custom theme YAML file
 theme: "dracula"
