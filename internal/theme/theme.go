@@ -30,10 +30,14 @@ type ThemeColors struct {
 // DefaultThemes returns the built-in themes
 func DefaultThemes() map[string]*Theme {
 	return map[string]*Theme{
-		"pipboy": PipBoyTheme(),
-		"dracula": DraculaTheme(),
-		"nord":    NordTheme(),
-		"monokai": MonokaiTheme(),
+		"pipboy":     PipBoyTheme(),
+		"dracula":    DraculaTheme(),
+		"nord":       NordTheme(),
+		"monokai":    MonokaiTheme(),
+		"monochrome": MonochromeTheme(),
+		"amber":      AmberTheme(),
+		"matrix":     MatrixTheme(),
+		"paper":      PaperTheme(),
 	}
 }
 
@@ -113,6 +117,86 @@ func MonokaiTheme() *Theme {
 			Success:    "#a6e22e", // Green
 			Warning:    "#e6db74", // Yellow
 			Border:     "#49483e", // Darker olive
+		},
+	}
+}
+
+// MonochromeTheme returns a pure black and white theme
+func MonochromeTheme() *Theme {
+	return &Theme{
+		Name:        "Monochrome",
+		Description: "Pure black and white minimalist theme",
+		Colors: ThemeColors{
+			Primary:    "#ffffff", // White
+			Secondary:  "#cccccc", // Light gray
+			Background: "#000000", // Black
+			Text:       "#ffffff", // White
+			Muted:      "#666666", // Gray
+			Accent:     "#ffffff", // White
+			Error:      "#ff0000", // Red (only color)
+			Success:    "#ffffff", // White
+			Warning:    "#ffffff", // White
+			Border:     "#444444", // Dark gray
+		},
+	}
+}
+
+// AmberTheme returns an amber CRT terminal aesthetic
+func AmberTheme() *Theme {
+	return &Theme{
+		Name:        "Amber",
+		Description: "Classic amber CRT terminal aesthetic",
+		Colors: ThemeColors{
+			Primary:    "#ffb000", // Amber
+			Secondary:  "#ff8c00", // Dark amber
+			Background: "#0d0800", // Very dark brown/black
+			Text:       "#ffb000", // Amber
+			Muted:      "#805800", // Dark amber
+			Accent:     "#ffc740", // Light amber
+			Error:      "#ff4500", // Orange red
+			Success:    "#ffb000", // Amber
+			Warning:    "#ffd700", // Gold
+			Border:     "#996600", // Medium amber
+		},
+	}
+}
+
+// MatrixTheme returns a green-on-black digital rain aesthetic
+func MatrixTheme() *Theme {
+	return &Theme{
+		Name:        "Matrix",
+		Description: "Green on black digital rain aesthetic",
+		Colors: ThemeColors{
+			Primary:    "#00ff41", // Matrix green
+			Secondary:  "#008f11", // Dark matrix green
+			Background: "#0d0208", // Near black with slight green
+			Text:       "#00ff41", // Matrix green
+			Muted:      "#003b00", // Very dark green
+			Accent:     "#39ff14", // Neon green
+			Error:      "#ff0000", // Red (system error)
+			Success:    "#00ff41", // Matrix green
+			Warning:    "#00ff41", // Matrix green
+			Border:     "#006400", // Dark green
+		},
+	}
+}
+
+// PaperTheme returns a light theme with thermal printer aesthetic
+func PaperTheme() *Theme {
+	return &Theme{
+		Name:        "Paper",
+		Description: "Light theme with thermal printer aesthetic",
+		Colors: ThemeColors{
+			Primary:    "#1a1a1a", // Near black text
+			Secondary:  "#4a4a4a", // Dark gray
+			Background: "#f5f5dc", // Beige/cream paper
+			Text:       "#1a1a1a", // Near black
+			Muted:      "#8b8b7a", // Muted olive gray
+			Accent:     "#2e2e2e", // Slightly lighter black
+			Error:      "#8b0000", // Dark red
+			Success:    "#1a1a1a", // Near black
+			Warning:    "#654321", // Dark brown
+			Border:     "#c0c0a8", // Light olive
 		},
 	}
 }
