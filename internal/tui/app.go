@@ -21,6 +21,7 @@ const (
 	ViewReader
 	ViewSearch
 	ViewHelp
+	ViewThemeSelector
 )
 
 // KeyMap defines the key bindings
@@ -125,9 +126,10 @@ type Model struct {
 	prevView    View
 
 	// Sub-models
-	list   *ListModel
-	reader *ReaderModel
-	search *SearchModel
+	list          *ListModel
+	reader        *ReaderModel
+	search        *SearchModel
+	themeSelector *ThemeSelectorModel
 
 	// Window dimensions
 	width  int
@@ -150,9 +152,9 @@ func New(repo *storage.PostRepository, loader *blog.ContentLoader, t *theme.Them
 func NewWithPreferences(repo *storage.PostRepository, loader *blog.ContentLoader, t *theme.Theme, cfg Config, fingerprint string, prefRepo *storage.PreferenceRepository) *Model {
 	styles := theme.NewStyles(t)
 
-	// Build theme list for cycling
+	// Build theme list for cycling (includes all built-in themes)
 	themeMap := theme.DefaultThemes()
-	themeNames := []string{"pipboy", "dracula", "nord", "monokai"}
+	themeNames := []string{"pipboy", "dracula", "nord", "monokai", "monochrome", "amber", "matrix", "paper"}
 	themes := make([]*theme.Theme, len(themeNames))
 	currentIndex := 0
 	for i, name := range themeNames {
@@ -179,6 +181,7 @@ func NewWithPreferences(repo *storage.PostRepository, loader *blog.ContentLoader
 	m.list = NewListModel(repo, styles, cfg.BlogTitle)
 	m.reader = NewReaderModel(styles)
 	m.search = NewSearchModel(repo, loader, styles)
+	m.themeSelector = NewThemeSelectorModel(themes, themeNames, currentIndex, styles, m.keyMap)
 
 	return m
 }
@@ -202,6 +205,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.list.SetSize(msg.Width, msg.Height-2) // Account for header/footer
 		m.reader.SetSize(msg.Width, msg.Height-2)
 		m.search.SetSize(msg.Width, msg.Height-2)
+		m.themeSelector.SetSize(msg.Width, msg.Height-2)
 
 	case tea.KeyMsg:
 		// Handle quit in any view
@@ -209,9 +213,11 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		}
 
-		// Handle theme toggle (t key) in any view except search
-		if msg.String() == "t" && m.currentView != ViewSearch {
-			return m, m.cycleTheme()
+		// Handle theme toggle (t key) - open theme selector
+		if msg.String() == "t" && m.currentView != ViewSearch && m.currentView != ViewThemeSelector {
+			m.prevView = m.currentView
+			m.currentView = ViewThemeSelector
+			return m, tea.ClearScreen
 		}
 
 		// Handle help toggle
@@ -270,6 +276,45 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case clearStatusMsg:
 		m.statusMsg = ""
 		return m, nil
+
+	case ThemePreviewMsg:
+		// Preview the theme while browsing
+		m.styles = theme.NewStyles(msg.Theme)
+		m.themeSelector.SetStyles(m.styles)
+		return m, nil
+
+	case ThemeSelectedMsg:
+		// Apply the selected theme
+		m.styles = theme.NewStyles(msg.Theme)
+		m.themeIndex = m.themeSelector.SelectedIndex()
+		m.list.styles = m.styles
+		m.reader.SetTheme(m.styles, msg.Name)
+		m.search.styles = m.styles
+		m.themeSelector.SetStyles(m.styles)
+		m.currentView = m.prevView
+
+		// Save theme preference
+		if m.fingerprint != "" && m.prefRepo != nil {
+			if err := m.prefRepo.SetTheme(m.fingerprint, msg.Name); err != nil {
+				log.Printf("Failed to save theme preference: %v", err)
+			}
+		}
+
+		m.statusMsg = "Theme: " + msg.Theme.Name
+		return m, tea.Batch(tea.ClearScreen, tea.Tick(1500*time.Millisecond, func(t time.Time) tea.Msg {
+			return clearStatusMsg{}
+		}))
+
+	case ThemeCancelledMsg:
+		// Restore original theme
+		originalTheme := m.themes[m.themeIndex]
+		m.styles = theme.NewStyles(originalTheme)
+		m.list.styles = m.styles
+		m.reader.SetTheme(m.styles, m.themeNames[m.themeIndex])
+		m.search.styles = m.styles
+		m.themeSelector.SetStyles(m.styles)
+		m.currentView = m.prevView
+		return m, tea.ClearScreen
 	}
 
 	// Route updates to current view
@@ -287,6 +332,11 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case ViewSearch:
 		var cmd tea.Cmd
 		m.search, cmd = m.search.Update(msg)
+		cmds = append(cmds, cmd)
+
+	case ViewThemeSelector:
+		var cmd tea.Cmd
+		m.themeSelector, cmd = m.themeSelector.Update(msg)
 		cmds = append(cmds, cmd)
 	}
 
@@ -310,6 +360,8 @@ func (m *Model) View() string {
 		content = m.search.View()
 	case ViewHelp:
 		content = m.renderHelp()
+	case ViewThemeSelector:
+		content = m.themeSelector.View()
 	}
 
 	// Build the full view with header and footer
@@ -365,6 +417,8 @@ func (m *Model) renderHelpHint() string {
 		hints = []string{hint("esc", "back"), helpHint, searchHint, themeHint, quitHint}
 	case ViewSearch:
 		hints = []string{hint("esc", "cancel")}
+	case ViewThemeSelector:
+		hints = []string{hint("↑/↓", "navigate"), hint("enter", "select"), hint("esc", "cancel")}
 	default:
 		hints = []string{helpHint, searchHint, themeHint, quitHint}
 	}
