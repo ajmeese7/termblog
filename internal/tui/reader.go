@@ -8,6 +8,7 @@ import (
 	"github.com/ajmeese7/termblog/internal/blog"
 	"github.com/ajmeese7/termblog/internal/storage"
 	"github.com/ajmeese7/termblog/internal/theme"
+	"github.com/ajmeese7/termblog/internal/theme/styles"
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
@@ -162,12 +163,16 @@ func (m *ReaderModel) renderContent() {
 		contentWidth = 20
 	}
 
-	// Map theme to glamour style
-	glamourStyle := m.getGlamourStyle()
+	// Load custom style for current theme
+	styleJSON, err := styles.GetStyle(m.themeName)
+	if err != nil {
+		// Fallback to built-in dark style
+		styleJSON, _ = styles.GetStyle("pipboy")
+	}
 
-	// Create a glamour renderer
+	// Create a glamour renderer with custom style
 	renderer, err := glamour.NewTermRenderer(
-		glamour.WithStylePath(glamourStyle),
+		glamour.WithStylesFromJSONBytes(styleJSON),
 		glamour.WithWordWrap(contentWidth),
 	)
 	if err != nil {
@@ -188,23 +193,6 @@ func (m *ReaderModel) renderContent() {
 	}
 
 	m.viewport.SetContent(rendered)
-}
-
-// getGlamourStyle returns the glamour style path for the current theme
-// Built-in glamour styles: auto, dark, light, dracula, notty, pink, ascii
-func (m *ReaderModel) getGlamourStyle() string {
-	switch m.themeName {
-	case "dracula":
-		return "dracula"
-	case "nord":
-		return "dark" // nord is dark theme, use dark style
-	case "pipboy":
-		return "dark"
-	case "monokai":
-		return "dark"
-	default:
-		return "dark"
-	}
 }
 
 func (m *ReaderModel) extractBody(content string) string {

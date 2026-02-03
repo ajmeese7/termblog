@@ -412,8 +412,8 @@ func (m *Model) cycleTheme() tea.Cmd {
 	m.statusMsg = "Theme: " + newTheme.Name
 	m.isError = false
 
-	// Return command to clear status after delay
-	return tea.Tick(time.Second, func(t time.Time) tea.Msg {
+	// Return command to clear status after delay (1.5 seconds)
+	return tea.Tick(1500*time.Millisecond, func(t time.Time) tea.Msg {
 		return clearStatusMsg{}
 	})
 }
