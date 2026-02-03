@@ -184,16 +184,12 @@ func runServe(sshOnly, httpOnly bool) error {
 	// Start servers
 	errCh := make(chan error, 2)
 
-	// Create preference repository for theme persistence
-	prefRepo := storage.NewPreferenceRepository(db)
-
 	if !httpOnly {
 		sshServer, err := server.NewSSHServer(
 			"0.0.0.0",
 			cfg.Server.SSHPort,
 			appInstance.HostKeyPath(),
 			repo,
-			prefRepo,
 			loader,
 			t,
 			tuiConfig,
@@ -224,8 +220,6 @@ func runServe(sshOnly, httpOnly bool) error {
 			loader,
 			feedGen,
 			binaryPath,
-			cfg.Blog.Title,
-			cfg.Blog.Description,
 		)
 
 		go func() {
@@ -365,7 +359,6 @@ func runPublish(slug string) error {
 	defer db.Close()
 
 	repo := storage.NewPostRepository(db)
-	loader := blog.NewContentLoader(appInstance.ContentPath())
 
 	// Find the post
 	post, err := repo.GetBySlug(slug)
@@ -388,14 +381,6 @@ func runPublish(slug string) error {
 
 	if err := repo.Update(post); err != nil {
 		return fmt.Errorf("failed to update post in database: %w", err)
-	}
-
-	// Update frontmatter in markdown file
-	if err := loader.UpdateFrontmatter(post.Filepath, map[string]interface{}{
-		"draft":        false,
-		"published_at": now.Format(time.RFC3339),
-	}); err != nil {
-		return fmt.Errorf("failed to update frontmatter: %w", err)
 	}
 
 	fmt.Printf("Published: %s\n", post.Title)
@@ -432,7 +417,6 @@ func syncPostsWithCount(loader *blog.ContentLoader, repo *storage.PostRepository
 			Status:      status,
 			Tags:        post.Tags,
 			PublishedAt: post.PublishedAt,
-			ReadingTime: post.ReadingTime,
 		}
 
 		if err := repo.UpsertBySlug(dbPost); err != nil {
