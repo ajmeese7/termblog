@@ -1,8 +1,11 @@
 package tui
 
 import (
+	"fmt"
 	"log"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -377,6 +380,29 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case AdminEditPostMsg:
 		// Launch editor for existing post
 		return m, m.launchEditorForPost(msg.Post)
+
+	case editorFinishedMsg:
+		// Editor closed, sync content and return to admin view
+		if msg.err != nil {
+			m.statusMsg = fmt.Sprintf("Editor error: %v", msg.err)
+			m.isError = true
+		} else {
+			// Sync the edited file to pick up changes
+			if err := m.syncPost(msg.filePath); err != nil {
+				m.statusMsg = fmt.Sprintf("Sync error: %v", err)
+				m.isError = true
+			} else {
+				m.statusMsg = "Post saved"
+				m.isError = false
+			}
+		}
+		// Reload admin posts and clear status after delay
+		return m, tea.Batch(
+			m.admin.Init(),
+			tea.Tick(1500*time.Millisecond, func(t time.Time) tea.Msg {
+				return clearStatusMsg{}
+			}),
+		)
 	}
 
 	// Route updates to current view
@@ -582,22 +608,93 @@ type clearStatusMsg struct{}
 
 // launchEditorForNewPost opens $EDITOR for creating a new post
 func (m *Model) launchEditorForNewPost() tea.Cmd {
-	return func() tea.Msg {
-		return StatusMsg{
-			Message: "Editor integration not yet implemented",
-			IsError: true,
+	// Create a new post file
+	title := fmt.Sprintf("New Post %s", time.Now().Format("2006-01-02-150405"))
+	filePath, err := m.loader.CreatePost(title, m.config.Author)
+	if err != nil {
+		return func() tea.Msg {
+			return StatusMsg{
+				Message: fmt.Sprintf("Failed to create post: %v", err),
+				IsError: true,
+			}
 		}
 	}
+
+	return m.openEditor(filePath)
 }
 
 // launchEditorForPost opens $EDITOR for editing an existing post
 func (m *Model) launchEditorForPost(post *storage.Post) tea.Cmd {
-	return func() tea.Msg {
-		return StatusMsg{
-			Message: "Editor integration not yet implemented",
-			IsError: true,
+	if post == nil || post.Filepath == "" {
+		return func() tea.Msg {
+			return StatusMsg{
+				Message: "No post selected or filepath missing",
+				IsError: true,
+			}
 		}
 	}
+
+	return m.openEditor(post.Filepath)
+}
+
+// openEditor launches $EDITOR to edit a file and returns to admin view when done
+func (m *Model) openEditor(filePath string) tea.Cmd {
+	editor := os.Getenv("EDITOR")
+	if editor == "" {
+		editor = os.Getenv("VISUAL")
+	}
+	if editor == "" {
+		editor = "vi" // Default fallback
+	}
+
+	// Resolve to absolute path
+	absPath, err := filepath.Abs(filePath)
+	if err != nil {
+		absPath = filePath
+	}
+
+	c := exec.Command(editor, absPath)
+	return tea.ExecProcess(c, func(err error) tea.Msg {
+		if err != nil {
+			return editorFinishedMsg{err: err, filePath: absPath}
+		}
+		return editorFinishedMsg{filePath: absPath}
+	})
+}
+
+// editorFinishedMsg is sent when the editor process exits
+type editorFinishedMsg struct {
+	err      error
+	filePath string
+}
+
+// syncPost syncs a single post file to the database
+func (m *Model) syncPost(filePath string) error {
+	// Load the post from file
+	post, err := m.loader.LoadPost(filePath)
+	if err != nil {
+		return fmt.Errorf("failed to load post: %w", err)
+	}
+
+	// Convert blog.Post to storage.Post
+	status := storage.StatusDraft
+	if !post.Draft {
+		status = storage.StatusPublished
+	}
+
+	dbPost := &storage.Post{
+		Slug:        post.Slug,
+		Title:       post.Title,
+		Filepath:    post.Filepath,
+		Status:      status,
+		CreatedAt:   post.CreatedAt,
+		UpdatedAt:   time.Now(),
+		PublishedAt: post.PublishedAt,
+		Tags:        post.Tags,
+	}
+
+	// Upsert to database
+	return m.repo.UpsertBySlug(dbPost)
 }
 
 // Messages
