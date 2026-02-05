@@ -249,6 +249,7 @@ func runServe(sshOnly, httpOnly bool) error {
 		BlogTitle:   cfg.Blog.Title,
 		Author:      cfg.Blog.Author,
 		ASCIIHeader: asciiHeader,
+		ContentDir:  appInstance.ContentPath(),
 	}
 
 	// Get the binary path for PTY spawning
@@ -274,10 +275,11 @@ func runServe(sshOnly, httpOnly bool) error {
 
 	if !httpOnly {
 		sshCfg := server.SSHConfig{
-			RateLimitCount:  cfg.Server.RateLimit.Limit,
-			RateLimitWindow: time.Duration(cfg.Server.RateLimit.Window) * time.Second,
-			ExitMessage:     cfg.Blog.ExitMessage,
-			FeedGenerator:   feedGen,
+			RateLimitCount:    cfg.Server.RateLimit.Limit,
+			RateLimitWindow:   time.Duration(cfg.Server.RateLimit.Window) * time.Second,
+			ExitMessage:       cfg.Blog.ExitMessage,
+			FeedGenerator:     feedGen,
+			AdminFingerprints: cfg.Admin.Fingerprints,
 		}
 		sshServer, err := server.NewSSHServer(
 			"0.0.0.0",
@@ -412,6 +414,7 @@ func runPTY() error {
 		BlogTitle:   cfg.Blog.Title,
 		Author:      cfg.Blog.Author,
 		ASCIIHeader: asciiHeader,
+		ContentDir:  appInstance.ContentPath(),
 	}
 
 	model := tui.New(repo, loader, t, tuiConfig)

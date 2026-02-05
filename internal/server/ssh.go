@@ -35,16 +35,18 @@ type SSHServer struct {
 	rateLimiter *RateLimiter
 	cmdHandler  *CommandHandler
 
-	host string
-	port int
+	host              string
+	port              int
+	adminFingerprints []string
 }
 
 // SSHConfig holds SSH server-specific configuration
 type SSHConfig struct {
-	RateLimitCount  int
-	RateLimitWindow time.Duration
-	ExitMessage     string
-	FeedGenerator   *blog.FeedGenerator // For RSS command support
+	RateLimitCount    int
+	RateLimitWindow   time.Duration
+	ExitMessage       string
+	FeedGenerator     *blog.FeedGenerator // For RSS command support
+	AdminFingerprints []string            // SSH fingerprints with admin access
 }
 
 // NewSSHServer creates a new SSH server
@@ -56,15 +58,16 @@ func NewSSHServer(host string, port int, hostKeyPath string, repo *storage.PostR
 	cmdHandler := NewCommandHandler(repo, loader, sshCfg.FeedGenerator)
 
 	s := &SSHServer{
-		repo:        repo,
-		prefRepo:    prefRepo,
-		loader:      loader,
-		theme:       t,
-		config:      tuiCfg,
-		rateLimiter: rateLimiter,
-		cmdHandler:  cmdHandler,
-		host:        host,
-		port:        port,
+		repo:              repo,
+		prefRepo:          prefRepo,
+		loader:            loader,
+		theme:             t,
+		config:            tuiCfg,
+		rateLimiter:       rateLimiter,
+		cmdHandler:        cmdHandler,
+		host:              host,
+		port:              port,
+		adminFingerprints: sshCfg.AdminFingerprints,
 	}
 
 	// Ensure host key directory exists
@@ -98,10 +101,16 @@ func NewSSHServer(host string, port int, hostKeyPath string, repo *storage.PostR
 
 // teaHandler returns a new Bubbletea program for each SSH session
 func (s *SSHServer) teaHandler(sshSession ssh.Session) (tea.Model, []tea.ProgramOption) {
-	// Get SSH key fingerprint for theme persistence
+	// Get SSH key fingerprint for theme persistence and admin check
 	fingerprint := ""
 	if pubKey := sshSession.PublicKey(); pubKey != nil {
 		fingerprint = gossh.FingerprintSHA256(pubKey)
+	}
+
+	// Check if user is admin
+	isAdmin := s.isAdminFingerprint(fingerprint)
+	if isAdmin {
+		log.Printf("Admin session started for fingerprint: %s", fingerprint)
 	}
 
 	// Load user's preferred theme
@@ -114,12 +123,25 @@ func (s *SSHServer) teaHandler(sshSession ssh.Session) (tea.Model, []tea.Program
 		}
 	}
 
-	model := tui.NewWithPreferences(s.repo, s.loader, selectedTheme, s.config, fingerprint, s.prefRepo)
+	model := tui.NewWithPreferences(s.repo, s.loader, selectedTheme, s.config, fingerprint, s.prefRepo, isAdmin)
 
 	return model, []tea.ProgramOption{
 		tea.WithAltScreen(),
 		tea.WithMouseCellMotion(),
 	}
+}
+
+// isAdminFingerprint checks if the given fingerprint is in the admin whitelist
+func (s *SSHServer) isAdminFingerprint(fingerprint string) bool {
+	if fingerprint == "" {
+		return false
+	}
+	for _, fp := range s.adminFingerprints {
+		if fp == fingerprint {
+			return true
+		}
+	}
+	return false
 }
 
 // Start starts the SSH server

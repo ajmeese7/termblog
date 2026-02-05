@@ -105,6 +105,7 @@ type Config struct {
 	BlogTitle   string
 	Author      string
 	ASCIIHeader string // Optional ASCII art for header
+	ContentDir  string // Path to content directory (for admin editing)
 }
 
 // Model is the root Bubbletea model
@@ -122,6 +123,9 @@ type Model struct {
 	themeNames  []string
 	themeIndex  int
 	fingerprint string // SSH key fingerprint for theme persistence
+
+	// Admin state
+	isAdmin bool // Whether the current user has admin privileges
 
 	// View state
 	currentView View
@@ -148,11 +152,11 @@ type Model struct {
 
 // New creates a new root model
 func New(repo *storage.PostRepository, loader *blog.ContentLoader, t *theme.Theme, cfg Config) *Model {
-	return NewWithPreferences(repo, loader, t, cfg, "", nil)
+	return NewWithPreferences(repo, loader, t, cfg, "", nil, false)
 }
 
 // NewWithPreferences creates a new root model with theme persistence support
-func NewWithPreferences(repo *storage.PostRepository, loader *blog.ContentLoader, t *theme.Theme, cfg Config, fingerprint string, prefRepo *storage.PreferenceRepository) *Model {
+func NewWithPreferences(repo *storage.PostRepository, loader *blog.ContentLoader, t *theme.Theme, cfg Config, fingerprint string, prefRepo *storage.PreferenceRepository, isAdmin bool) *Model {
 	styles := theme.NewStyles(t)
 
 	// Build theme list for cycling (includes all built-in themes)
@@ -189,6 +193,7 @@ func NewWithPreferences(repo *storage.PostRepository, loader *blog.ContentLoader
 		themeNames:  themeNames,
 		themeIndex:  currentIndex,
 		fingerprint: fingerprint,
+		isAdmin:     isAdmin,
 		currentView: ViewList,
 	}
 
