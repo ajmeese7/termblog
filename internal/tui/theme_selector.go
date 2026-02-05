@@ -88,15 +88,24 @@ func (m *ThemeSelectorModel) Update(msg tea.Msg) (*ThemeSelectorModel, tea.Cmd) 
 
 // View renders the theme selector
 func (m *ThemeSelectorModel) View() string {
-	var sb strings.Builder
+	var lines []string
+	currentTheme := m.themes[m.cursor]
+	bg := lipgloss.Color(currentTheme.Colors.Background)
+	contentWidth := m.width - 4
+	if contentWidth < 20 {
+		contentWidth = 20
+	}
+
+	// Background style for padding lines
+	bgStyle := lipgloss.NewStyle().Background(bg)
 
 	titleStyle := lipgloss.NewStyle().
 		Bold(true).
-		Foreground(lipgloss.Color(m.themes[m.cursor].Colors.Accent)).
-		MarginBottom(1)
+		Foreground(lipgloss.Color(currentTheme.Colors.Accent)).
+		Background(bg)
 
-	sb.WriteString(titleStyle.Render("Select Theme"))
-	sb.WriteString("\n\n")
+	lines = append(lines, titleStyle.Width(contentWidth).Render("Select Theme"))
+	lines = append(lines, bgStyle.Width(contentWidth).Render(""))
 
 	for i, t := range m.themes {
 		cursor := "  "
@@ -110,41 +119,39 @@ func (m *ThemeSelectorModel) View() string {
 		}
 
 		// Create theme preview colors
-		itemStyle := lipgloss.NewStyle()
+		itemStyle := lipgloss.NewStyle().Background(bg)
 		if i == m.cursor {
 			itemStyle = itemStyle.
 				Bold(true).
 				Foreground(lipgloss.Color(t.Colors.Primary))
 		} else {
 			itemStyle = itemStyle.
-				Foreground(lipgloss.Color(m.themes[m.cursor].Colors.Muted))
+				Foreground(lipgloss.Color(currentTheme.Colors.Muted))
 		}
 
 		descStyle := lipgloss.NewStyle().
-			Foreground(lipgloss.Color(m.themes[m.cursor].Colors.Muted)).
+			Foreground(lipgloss.Color(currentTheme.Colors.Muted)).
+			Background(bg).
 			Italic(true)
 
 		line := fmt.Sprintf("%s%s%s", cursor, t.Name, selected)
-		sb.WriteString(itemStyle.Render(line))
-		sb.WriteString("\n")
+		lines = append(lines, itemStyle.Width(contentWidth).Render(line))
 
 		if i == m.cursor {
-			sb.WriteString("    ")
-			sb.WriteString(descStyle.Render(t.Description))
-			sb.WriteString("\n")
-			sb.WriteString(m.renderColorPreview(t))
-			sb.WriteString("\n")
+			lines = append(lines, descStyle.Width(contentWidth).Render("    "+t.Description))
+			lines = append(lines, bgStyle.Width(contentWidth).Render(m.renderColorPreview(t)))
 		}
 	}
 
-	sb.WriteString("\n")
+	lines = append(lines, bgStyle.Width(contentWidth).Render(""))
 
 	helpStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color(m.themes[m.cursor].Colors.Muted))
+		Foreground(lipgloss.Color(currentTheme.Colors.Muted)).
+		Background(bg)
 
-	sb.WriteString(helpStyle.Render("↑/↓ navigate • enter select • esc cancel"))
+	lines = append(lines, helpStyle.Width(contentWidth).Render("↑/↓ navigate • enter select • esc cancel"))
 
-	return sb.String()
+	return lipgloss.JoinVertical(lipgloss.Left, lines...)
 }
 
 // renderColorPreview shows a visual preview of theme colors

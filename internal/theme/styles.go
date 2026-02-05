@@ -46,6 +46,9 @@ type Styles struct {
 	Border  lipgloss.Style
 	Title   lipgloss.Style
 	Spinner lipgloss.Style
+
+	// Content background - used for padding content lines to full width
+	ContentBg lipgloss.Style
 }
 
 // NewStyles creates styles from a theme
@@ -54,6 +57,7 @@ func NewStyles(theme *Theme) *Styles {
 
 	primary := lipgloss.Color(c.Primary)
 	secondary := lipgloss.Color(c.Secondary)
+	background := lipgloss.Color(c.Background)
 	text := lipgloss.Color(c.Text)
 	muted := lipgloss.Color(c.Muted)
 	accent := lipgloss.Color(c.Accent)
@@ -64,10 +68,12 @@ func NewStyles(theme *Theme) *Styles {
 	return &Styles{
 		// Base styles
 		App: lipgloss.NewStyle().
-			Foreground(text),
+			Foreground(text).
+			Background(background),
 
 		Header: lipgloss.NewStyle().
 			Foreground(primary).
+			Background(background).
 			Bold(true).
 			Padding(0, 1).
 			BorderStyle(lipgloss.NormalBorder()).
@@ -76,6 +82,7 @@ func NewStyles(theme *Theme) *Styles {
 
 		Footer: lipgloss.NewStyle().
 			Foreground(muted).
+			Background(background).
 			Padding(0, 1).
 			BorderStyle(lipgloss.NormalBorder()).
 			BorderTop(true).
@@ -83,10 +90,12 @@ func NewStyles(theme *Theme) *Styles {
 
 		// List view
 		List: lipgloss.NewStyle().
+			Background(background).
 			Padding(1, 2),
 
 		ListItem: lipgloss.NewStyle().
 			Foreground(text).
+			Background(background).
 			Padding(0, 1),
 
 		ListSelected: lipgloss.NewStyle().
@@ -97,61 +106,75 @@ func NewStyles(theme *Theme) *Styles {
 
 		ListTitle: lipgloss.NewStyle().
 			Foreground(primary).
+			Background(background).
 			Bold(true),
 
 		ListDate: lipgloss.NewStyle().
 			Foreground(muted).
+			Background(background).
 			Italic(true),
 
 		ListTags: lipgloss.NewStyle().
-			Foreground(secondary),
+			Foreground(secondary).
+			Background(background),
 
 		// Reader view
 		Reader: lipgloss.NewStyle().
+			Background(background).
 			Padding(1, 2),
 
 		ReaderTitle: lipgloss.NewStyle().
 			Foreground(primary).
+			Background(background).
 			Bold(true).
 			Padding(1, 0).
 			MarginBottom(1),
 
 		ReaderMeta: lipgloss.NewStyle().
 			Foreground(muted).
+			Background(background).
 			Italic(true).
 			MarginBottom(1),
 
 		ReaderScroll: lipgloss.NewStyle().
-			Foreground(muted),
+			Foreground(muted).
+			Background(background),
 
 		// Search view
 		Search: lipgloss.NewStyle().
+			Background(background).
 			Padding(1, 2),
 
 		SearchInput: lipgloss.NewStyle().
 			Foreground(primary).
+			Background(background).
 			BorderStyle(lipgloss.NormalBorder()).
 			BorderForeground(border).
 			Padding(0, 1),
 
 		SearchHint: lipgloss.NewStyle().
 			Foreground(muted).
+			Background(background).
 			Italic(true),
 
 		// Help
 		Help: lipgloss.NewStyle().
 			Foreground(text).
+			Background(background).
 			Padding(1, 2),
 
 		HelpKey: lipgloss.NewStyle().
 			Foreground(accent).
+			Background(background).
 			Bold(true),
 
 		HelpDesc: lipgloss.NewStyle().
-			Foreground(muted),
+			Foreground(muted).
+			Background(background),
 
 		HelpSection: lipgloss.NewStyle().
 			Foreground(primary).
+			Background(background).
 			Bold(true).
 			MarginTop(1).
 			MarginBottom(1),
@@ -159,30 +182,40 @@ func NewStyles(theme *Theme) *Styles {
 		// Status
 		StatusBar: lipgloss.NewStyle().
 			Foreground(text).
+			Background(background).
 			Padding(0, 1),
 
 		StatusMessage: lipgloss.NewStyle().
-			Foreground(text),
+			Foreground(text).
+			Background(background),
 
 		StatusError: lipgloss.NewStyle().
 			Foreground(errorColor).
+			Background(background).
 			Bold(true),
 
 		StatusSuccess: lipgloss.NewStyle().
 			Foreground(success).
+			Background(background).
 			Bold(true),
 
 		// Misc
 		Border: lipgloss.NewStyle().
+			Background(background).
 			BorderStyle(lipgloss.RoundedBorder()).
 			BorderForeground(border),
 
 		Title: lipgloss.NewStyle().
 			Foreground(primary).
+			Background(background).
 			Bold(true),
 
 		Spinner: lipgloss.NewStyle().
-			Foreground(accent),
+			Foreground(accent).
+			Background(background),
+
+		ContentBg: lipgloss.NewStyle().
+			Background(background),
 	}
 }
 

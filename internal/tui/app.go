@@ -2,6 +2,7 @@ package tui
 
 import (
 	"log"
+	"os"
 	"strings"
 	"time"
 
@@ -142,6 +143,7 @@ type Model struct {
 
 	// Ready flag (after first resize)
 	ready bool
+
 }
 
 // New creates a new root model
@@ -162,6 +164,17 @@ func NewWithPreferences(repo *storage.PostRepository, loader *blog.ContentLoader
 		themes[i] = themeMap[name]
 		if themes[i].Name == t.Name {
 			currentIndex = i
+		}
+	}
+
+	// If the web client passed a saved theme, use it instead of the config default
+	if webTheme := os.Getenv("TERMBLOG_WEB_THEME"); webTheme != "" {
+		for i, name := range themeNames {
+			if name == webTheme {
+				currentIndex = i
+				styles = theme.NewStyles(themes[i])
+				break
+			}
 		}
 	}
 
@@ -189,7 +202,21 @@ func NewWithPreferences(repo *storage.PostRepository, loader *blog.ContentLoader
 
 // Init implements tea.Model
 func (m *Model) Init() tea.Cmd {
-	return m.list.Init()
+	return tea.Batch(m.list.Init(), emitWebThemeCmd(m.themeNames[m.themeIndex]))
+}
+
+// emitWebThemeCmd returns a tea.Cmd that writes an OSC sequence directly to stdout
+// to notify the web terminal of a theme change. This bypasses Bubbletea's renderer
+// which would strip the OSC sequence during its diff-based rendering.
+func emitWebThemeCmd(themeName string) tea.Cmd {
+	osc := emitWebThemeChange(themeName)
+	if osc == "" {
+		return nil
+	}
+	return func() tea.Msg {
+		os.Stdout.WriteString(osc)
+		return nil
+	}
 }
 
 // Update implements tea.Model
@@ -282,7 +309,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Preview the theme while browsing
 		m.styles = theme.NewStyles(msg.Theme)
 		m.themeSelector.SetStyles(m.styles)
-		return m, nil
+		return m, emitWebThemeCmd(msg.Name)
 
 	case ThemeSelectedMsg:
 		// Apply the selected theme
@@ -302,9 +329,13 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		m.statusMsg = "Theme: " + msg.Theme.Name
-		return m, tea.Batch(tea.ClearScreen, tea.Tick(1500*time.Millisecond, func(t time.Time) tea.Msg {
-			return clearStatusMsg{}
-		}))
+		return m, tea.Batch(
+			tea.ClearScreen,
+			emitWebThemeCmd(msg.Name),
+			tea.Tick(1500*time.Millisecond, func(t time.Time) tea.Msg {
+				return clearStatusMsg{}
+			}),
+		)
 
 	case ThemeCancelledMsg:
 		// Restore original theme
@@ -315,7 +346,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.search.styles = m.styles
 		m.themeSelector.SetStyles(m.styles)
 		m.currentView = m.prevView
-		return m, tea.ClearScreen
+		return m, tea.Batch(tea.ClearScreen, emitWebThemeCmd(m.themeNames[m.themeIndex]))
 	}
 
 	// Route updates to current view
@@ -369,12 +400,18 @@ func (m *Model) View() string {
 	header := m.renderHeader()
 	footer := m.renderFooter()
 
-	return lipgloss.JoinVertical(
+	view := lipgloss.JoinVertical(
 		lipgloss.Left,
 		header,
 		content,
 		footer,
 	)
+
+	// Apply theme background to fill the entire terminal
+	return m.styles.App.
+		Width(m.width).
+		Height(m.height).
+		Render(view)
 }
 
 func (m *Model) renderHeader() string {

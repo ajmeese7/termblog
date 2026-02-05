@@ -212,25 +212,27 @@ func (m *ListModel) renderPost(idx int, post *storage.Post) string {
 	// Format title with cursor indicator
 	var title string
 	if isSelected {
-		title = m.styles.ListSelected.Render("► " + post.Title)
+		title = m.styles.ListSelected.Width(m.width - 4).Render("► " + post.Title)
 	} else {
-		title = m.styles.ListItem.Render("  " + post.Title)
+		title = m.styles.ListItem.Width(m.width - 4).Render("  " + post.Title)
 	}
 
-	// Format date
-	date := m.styles.ListDate.Render("  " + dateStr)
-
-	// Format tags
-	var tagsStr string
+	// Format date and tags on same line
+	dateTags := m.styles.ListDate.Render("  " + dateStr)
 	if len(post.Tags) > 0 {
-		tagsStr = m.styles.ListTags.Render("  [" + strings.Join(post.Tags, ", ") + "]")
+		dateTags += m.styles.ListTags.Render("  [" + strings.Join(post.Tags, ", ") + "]")
 	}
+	// Apply full width with ContentBg (no padding) to the date/tags line
+	dateLine := m.styles.ContentBg.Width(m.width - 4).Render(dateTags)
+
+	// Empty line with background (ContentBg has no padding)
+	emptyLine := m.styles.ContentBg.Width(m.width - 4).Render("")
 
 	return lipgloss.JoinVertical(
 		lipgloss.Left,
 		title,
-		date+tagsStr,
-		"",
+		dateLine,
+		emptyLine,
 	)
 }
 

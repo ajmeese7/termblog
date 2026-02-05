@@ -43,5 +43,10 @@ temp/
 # Local config
 config.yaml
 
+# Node.js (e2e tests)
+node_modules/
+tests/e2e/test-results/
+tests/e2e/playwright-report/
+
 # Development
 COMMIT_MSG.txt

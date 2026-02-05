@@ -12,11 +12,27 @@
             box-sizing: border-box;
         }
 
-        html, body {
+        html, body, #terminal-container {
             height: 100%;
-            background-color: #0a0a0a;
             overflow: hidden;
         }
+    </style>
+    <script>
+        // Theme background colors - must match TUI themes
+        var termBlogThemes = {
+            pipboy: "#0a0a0a", dracula: "#282a36", nord: "#2e3440", monokai: "#272822",
+            monochrome: "#000000", amber: "#0d0800", matrix: "#0d0208", paper: "#f5f5dc"
+        };
+        // Apply theme background immediately to prevent flash of wrong color
+        var defaultTheme = "{{.DefaultTheme}}";
+        (function() {
+            var savedTheme = localStorage.getItem("termblog-theme") || defaultTheme || "pipboy";
+            var bg = termBlogThemes[savedTheme] || termBlogThemes[defaultTheme] || termBlogThemes.pipboy;
+            // Set on html element immediately (before body exists)
+            document.documentElement.style.setProperty("background-color", bg, "important");
+        })();
+    </script>
+    <style>
 
         #terminal-container {
             width: 100%;
@@ -25,6 +41,7 @@
             align-items: center;
             justify-content: center;
             padding: 10px;
+            background: inherit;
         }
 
         #terminal {
@@ -116,15 +133,9 @@
     <script>
         const wsUrl = "{{.WSUrl}}";
 
-        // Initialize terminal
-        const term = new Terminal({
-            cursorBlink: true,
-            cursorStyle: "block",
-            fontFamily: '"Fira Code", "Cascadia Code", Menlo, Monaco, "Courier New", monospace',
-            fontSize: 14,
-            lineHeight: 1.2,
-            scrollback: 0,  // Disable scrollback to prevent rendering issues
-            theme: {
+        // Theme definitions matching TUI themes
+        const themes = {
+            pipboy: {
                 background: "#0a0a0a",
                 foreground: "#00ff00",
                 cursor: "#00ff00",
@@ -147,8 +158,198 @@
                 brightCyan: "#66ffff",
                 brightWhite: "#ffffff"
             },
+            dracula: {
+                background: "#282a36",
+                foreground: "#f8f8f2",
+                cursor: "#f8f8f2",
+                cursorAccent: "#282a36",
+                selectionBackground: "#44475a",
+                black: "#21222c",
+                red: "#ff5555",
+                green: "#50fa7b",
+                yellow: "#f1fa8c",
+                blue: "#bd93f9",
+                magenta: "#ff79c6",
+                cyan: "#8be9fd",
+                white: "#f8f8f2",
+                brightBlack: "#6272a4",
+                brightRed: "#ff6e6e",
+                brightGreen: "#69ff94",
+                brightYellow: "#ffffa5",
+                brightBlue: "#d6acff",
+                brightMagenta: "#ff92df",
+                brightCyan: "#a4ffff",
+                brightWhite: "#ffffff"
+            },
+            nord: {
+                background: "#2e3440",
+                foreground: "#eceff4",
+                cursor: "#eceff4",
+                cursorAccent: "#2e3440",
+                selectionBackground: "#434c5e",
+                black: "#3b4252",
+                red: "#bf616a",
+                green: "#a3be8c",
+                yellow: "#ebcb8b",
+                blue: "#81a1c1",
+                magenta: "#b48ead",
+                cyan: "#88c0d0",
+                white: "#e5e9f0",
+                brightBlack: "#4c566a",
+                brightRed: "#bf616a",
+                brightGreen: "#a3be8c",
+                brightYellow: "#ebcb8b",
+                brightBlue: "#81a1c1",
+                brightMagenta: "#b48ead",
+                brightCyan: "#8fbcbb",
+                brightWhite: "#eceff4"
+            },
+            monokai: {
+                background: "#272822",
+                foreground: "#f8f8f2",
+                cursor: "#f8f8f2",
+                cursorAccent: "#272822",
+                selectionBackground: "#49483e",
+                black: "#272822",
+                red: "#f92672",
+                green: "#a6e22e",
+                yellow: "#f4bf75",
+                blue: "#66d9ef",
+                magenta: "#ae81ff",
+                cyan: "#a1efe4",
+                white: "#f8f8f2",
+                brightBlack: "#75715e",
+                brightRed: "#f92672",
+                brightGreen: "#a6e22e",
+                brightYellow: "#f4bf75",
+                brightBlue: "#66d9ef",
+                brightMagenta: "#ae81ff",
+                brightCyan: "#a1efe4",
+                brightWhite: "#f9f8f5"
+            },
+            monochrome: {
+                background: "#000000",
+                foreground: "#ffffff",
+                cursor: "#ffffff",
+                cursorAccent: "#000000",
+                selectionBackground: "#444444",
+                black: "#000000",
+                red: "#ff0000",
+                green: "#ffffff",
+                yellow: "#ffffff",
+                blue: "#ffffff",
+                magenta: "#ffffff",
+                cyan: "#ffffff",
+                white: "#ffffff",
+                brightBlack: "#666666",
+                brightRed: "#ff0000",
+                brightGreen: "#ffffff",
+                brightYellow: "#ffffff",
+                brightBlue: "#ffffff",
+                brightMagenta: "#ffffff",
+                brightCyan: "#ffffff",
+                brightWhite: "#ffffff"
+            },
+            amber: {
+                background: "#0d0800",
+                foreground: "#ffb000",
+                cursor: "#ffb000",
+                cursorAccent: "#0d0800",
+                selectionBackground: "#331a00",
+                black: "#0d0800",
+                red: "#ff4500",
+                green: "#ffb000",
+                yellow: "#ffd700",
+                blue: "#ff8c00",
+                magenta: "#ffc740",
+                cyan: "#ff8c00",
+                white: "#ffb000",
+                brightBlack: "#805800",
+                brightRed: "#ff4500",
+                brightGreen: "#ffc740",
+                brightYellow: "#ffd700",
+                brightBlue: "#ff8c00",
+                brightMagenta: "#ffc740",
+                brightCyan: "#ff8c00",
+                brightWhite: "#ffc740"
+            },
+            matrix: {
+                background: "#0d0208",
+                foreground: "#00ff41",
+                cursor: "#00ff41",
+                cursorAccent: "#0d0208",
+                selectionBackground: "#003b00",
+                black: "#0d0208",
+                red: "#ff0000",
+                green: "#00ff41",
+                yellow: "#00ff41",
+                blue: "#008f11",
+                magenta: "#39ff14",
+                cyan: "#00ff41",
+                white: "#00ff41",
+                brightBlack: "#003b00",
+                brightRed: "#ff0000",
+                brightGreen: "#39ff14",
+                brightYellow: "#39ff14",
+                brightBlue: "#008f11",
+                brightMagenta: "#39ff14",
+                brightCyan: "#39ff14",
+                brightWhite: "#39ff14"
+            },
+            paper: {
+                background: "#f5f5dc",
+                foreground: "#1a1a1a",
+                cursor: "#1a1a1a",
+                cursorAccent: "#f5f5dc",
+                selectionBackground: "#c0c0a8",
+                black: "#1a1a1a",
+                red: "#8b0000",
+                green: "#1a1a1a",
+                yellow: "#654321",
+                blue: "#4a4a4a",
+                magenta: "#2e2e2e",
+                cyan: "#4a4a4a",
+                white: "#f5f5dc",
+                brightBlack: "#8b8b7a",
+                brightRed: "#8b0000",
+                brightGreen: "#2e2e2e",
+                brightYellow: "#654321",
+                brightBlue: "#4a4a4a",
+                brightMagenta: "#2e2e2e",
+                brightCyan: "#4a4a4a",
+                brightWhite: "#f5f5dc"
+            }
+        };
+
+        // Load saved theme or default to server-configured theme
+        const savedTheme = localStorage.getItem("termblog-theme") || defaultTheme || "pipboy";
+        const initialTheme = themes[savedTheme] || themes[defaultTheme] || themes.pipboy;
+
+        // Apply theme to page background
+        function applyPageBackground(themeName) {
+            const bg = termBlogThemes[themeName] || termBlogThemes.pipboy;
+            document.documentElement.style.setProperty("background-color", bg, "important");
+            document.body.style.setProperty("background-color", bg, "important");
+            const container = document.getElementById("terminal-container");
+            if (container) {
+                container.style.setProperty("background-color", bg, "important");
+            }
+        }
+
+        // Initialize terminal
+        const term = new Terminal({
+            cursorBlink: true,
+            cursorStyle: "block",
+            fontFamily: '"Fira Code", "Cascadia Code", Menlo, Monaco, "Courier New", monospace',
+            fontSize: 14,
+            lineHeight: 1.2,
+            scrollback: 0,  // Disable scrollback to prevent rendering issues
+            theme: initialTheme,
             allowProposedApi: true
         });
+
+        // Apply initial page background
+        applyPageBackground(savedTheme);
 
         const fitAddon = new FitAddon.FitAddon();
         const webLinksAddon = new WebLinksAddon.WebLinksAddon();
@@ -205,7 +406,10 @@
         function connect() {
             setStatus("connecting");
 
-            ws = new WebSocket(wsUrl);
+            // Pass saved theme to server so the TUI starts with the correct theme
+            const connTheme = localStorage.getItem("termblog-theme");
+            const connUrl = connTheme ? wsUrl + "?theme=" + encodeURIComponent(connTheme) : wsUrl;
+            ws = new WebSocket(connUrl);
             ws.binaryType = "arraybuffer";
 
             ws.onopen = function() {
@@ -218,10 +422,34 @@
             };
 
             ws.onmessage = function(event) {
+                let data;
                 if (event.data instanceof ArrayBuffer) {
-                    term.write(new Uint8Array(event.data));
+                    data = new Uint8Array(event.data);
                 } else {
-                    term.write(event.data);
+                    data = event.data;
+                }
+
+                // Check for OSC 7777 theme change sequence
+                const dataStr = typeof data === "string" ? data : new TextDecoder().decode(data);
+
+                const themeMatch = dataStr.match(/\x1b\]7777;theme=([a-z]+)\x07/);
+                if (themeMatch) {
+                    const themeName = themeMatch[1];
+                    if (themes[themeName]) {
+                        // Update xterm theme
+                        term.options.theme = themes[themeName];
+                        // Update page background
+                        applyPageBackground(themeName);
+                        // Save to localStorage
+                        localStorage.setItem("termblog-theme", themeName);
+                    }
+                    // Remove the OSC sequence from output (don't display it)
+                    const cleanedData = dataStr.replace(/\x1b\]7777;theme=[a-z]+\x07/g, "");
+                    if (cleanedData) {
+                        term.write(cleanedData);
+                    }
+                } else {
+                    term.write(data);
                 }
             };
 

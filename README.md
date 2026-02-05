@@ -142,6 +142,31 @@ Your content here...
 | `?` | Toggle help |
 | `q` | Quit |
 
+## Testing
+
+### Unit Tests
+
+Go unit tests cover server middleware, rate limiting, SSH commands, TUI rendering, mouse handling, and theme rendering:
+
+```bash
+make test
+```
+
+### End-to-End Browser Tests
+
+Playwright tests verify the web terminal, theme switching via OSC sequences, localStorage persistence, and page background sync:
+
+```bash
+# Install dependencies (first time only)
+pushd tests/e2e && npm install && npx playwright install chromium && popd
+
+# Start the server
+make build && ./termblog serve &
+
+# Run e2e tests
+make test-e2e
+```
+
 ## Project Structure
 
 ```
@@ -154,6 +179,7 @@ Your content here...
 │   ├── theme/          # Color themes and styling
 │   ├── tui/            # Terminal UI (Bubbletea)
 │   └── version/        # Build-time version info
+├── tests/e2e/          # Playwright browser tests
 ├── content/posts/      # Markdown blog posts
 └── config.yaml         # Configuration
 ```

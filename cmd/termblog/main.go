@@ -319,6 +319,7 @@ func runServe(sshOnly, httpOnly bool) error {
 			cfg.Blog.Title,
 			cfg.Blog.Description,
 			t,
+			cfg.Theme,
 		)
 		if err != nil {
 			return fmt.Errorf("failed to create HTTP server: %w", err)

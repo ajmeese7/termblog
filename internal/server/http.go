@@ -43,6 +43,7 @@ type HTTPServer struct {
 	blogTitle       string
 	blogDescription string
 	theme           *theme.Theme
+	themeKey        string // lowercase key matching JS theme map (e.g. "dracula")
 
 	// Cached templates (parsed once at startup)
 	templates map[string]*template.Template
@@ -69,7 +70,7 @@ func (s *HTTPServer) themeColors() ThemeColors {
 }
 
 // NewHTTPServer creates a new HTTP server
-func NewHTTPServer(host string, port int, repo *storage.PostRepository, loader *blog.ContentLoader, feed *blog.FeedGenerator, binaryPath string, blogTitle string, blogDescription string, t *theme.Theme) (*HTTPServer, error) {
+func NewHTTPServer(host string, port int, repo *storage.PostRepository, loader *blog.ContentLoader, feed *blog.FeedGenerator, binaryPath string, blogTitle string, blogDescription string, t *theme.Theme, themeKey string) (*HTTPServer, error) {
 	// Parse and cache templates at startup for efficiency and early error detection
 	templates := make(map[string]*template.Template)
 	templateNames := []string{"index.html", "archive.html", "post.html", "tag.html"}
@@ -97,6 +98,7 @@ func NewHTTPServer(host string, port int, repo *storage.PostRepository, loader *
 		blogTitle:       blogTitle,
 		blogDescription: blogDescription,
 		theme:           t,
+		themeKey:        themeKey,
 		templates:       templates,
 	}
 
@@ -140,11 +142,13 @@ func (s *HTTPServer) handleIndex(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := struct {
-		Title string
-		WSUrl string
+		Title        string
+		WSUrl        string
+		DefaultTheme string
 	}{
-		Title: s.blogTitle,
-		WSUrl: fmt.Sprintf("ws://%s/ws", r.Host),
+		Title:        s.blogTitle,
+		WSUrl:        fmt.Sprintf("ws://%s/ws", r.Host),
+		DefaultTheme: s.themeKey,
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -473,10 +477,16 @@ func (s *HTTPServer) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 
 	// Spawn the PTY process
 	cmd := exec.Command(s.binaryPath, "pty")
-	cmd.Env = append(os.Environ(),
+	env := append(os.Environ(),
 		"TERM=xterm-256color",
 		"TERMBLOG_NO_MOUSE=1", // Disable mouse mode to allow text selection in browser
 	)
+
+	// Pass the web user's saved theme so the TUI starts with the correct theme
+	if webTheme := r.URL.Query().Get("theme"); webTheme != "" {
+		env = append(env, "TERMBLOG_WEB_THEME="+webTheme)
+	}
+	cmd.Env = env
 
 	ptmx, err := pty.Start(cmd)
 	if err != nil {

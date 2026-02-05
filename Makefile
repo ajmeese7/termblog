@@ -1,7 +1,7 @@
 # Termblog Makefile
 
 # Version info
-VERSION ?= 0.1.0
+VERSION ?= 0.2.0
 COMMIT := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 DATE := $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
 
@@ -18,7 +18,7 @@ GOBUILD := $(GOCMD) build
 GOTEST := $(GOCMD) test
 GOMOD := $(GOCMD) mod
 
-.PHONY: all build clean test tidy version release tag help
+.PHONY: all build clean test test-v test-e2e tidy version release tag help
 
 ## Build the binary
 build:
@@ -28,9 +28,17 @@ build:
 build-prod:
 	$(GOBUILD) -ldflags "$(LDFLAGS) -s -w" -o $(BINARY) ./cmd/termblog
 
-## Run tests
+## Run unit tests (use `make test-v` for verbose output)
 test:
+	$(GOTEST) ./...
+
+## Run unit tests with verbose output
+test-v:
 	$(GOTEST) -v ./...
+
+## Run end-to-end browser tests (requires running server: make build && ./termblog serve)
+test-e2e:
+	cd tests/e2e && npx playwright test
 
 ## Tidy dependencies
 tidy:
@@ -67,7 +75,8 @@ help:
 	@echo "Targets:"
 	@echo "  build       Build the binary"
 	@echo "  build-prod  Build production binary (stripped)"
-	@echo "  test        Run tests"
+	@echo "  test        Run unit tests"
+	@echo "  test-e2e    Run browser e2e tests (server must be running)"
 	@echo "  tidy        Tidy dependencies"
 	@echo "  clean       Remove build artifacts"
 	@echo "  version     Show version info"

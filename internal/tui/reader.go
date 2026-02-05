@@ -131,8 +131,13 @@ func (m *ReaderModel) View() string {
 		return m.styles.Reader.Render("No post selected")
 	}
 
-	// Build header
-	title := m.styles.ReaderTitle.Render(m.post.Title)
+	contentWidth := m.width - 4
+	if contentWidth < 20 {
+		contentWidth = 20
+	}
+
+	// Build header with full-width background
+	title := m.styles.ReaderTitle.Width(contentWidth).Render(m.post.Title)
 
 	var metaParts []string
 	if m.post.PublishedAt != nil {
@@ -141,15 +146,18 @@ func (m *ReaderModel) View() string {
 	if len(m.post.Tags) > 0 {
 		metaParts = append(metaParts, strings.Join(m.post.Tags, ", "))
 	}
-	meta := m.styles.ReaderMeta.Render(strings.Join(metaParts, " • "))
+	meta := m.styles.ReaderMeta.Width(contentWidth).Render(strings.Join(metaParts, " • "))
+
+	// Empty line with background
+	emptyLine := m.styles.ContentBg.Width(contentWidth).Render("")
 
 	// Scroll indicator - fixed width to prevent redraw flicker
 	scrollPercent := m.viewport.ScrollPercent() * 100
-	scrollInfo := m.styles.ReaderScroll.Render(fmt.Sprintf(" %3.0f%% ", scrollPercent))
+	scrollInfo := m.styles.ReaderScroll.Width(contentWidth).Render(fmt.Sprintf(" %3.0f%% ", scrollPercent))
 
 	// Manually join with newlines instead of lipgloss.JoinVertical
 	// This gives bubbletea's renderer consistent line counts
-	return title + "\n" + meta + "\n\n" + m.viewport.View() + "\n" + scrollInfo
+	return title + "\n" + meta + "\n" + emptyLine + "\n" + m.viewport.View() + "\n" + scrollInfo
 }
 
 func (m *ReaderModel) renderContent() {
@@ -192,7 +200,36 @@ func (m *ReaderModel) renderContent() {
 		return
 	}
 
+	// Pad each line with background color to fill full width
+	rendered = m.padContentLines(rendered, contentWidth)
+
 	m.viewport.SetContent(rendered)
+}
+
+// padContentLines applies the theme background to each line of content
+// It also fixes the issue where glamour's [0m reset codes clear the background
+func (m *ReaderModel) padContentLines(content string, width int) string {
+	// Get the background color from styles by rendering an empty string
+	// and extracting the ANSI code
+	bgSample := m.styles.ContentBg.Render("")
+	// Extract background code (e.g., "\x1b[48;2;40;42;54m")
+	bgCode := ""
+	if idx := strings.Index(bgSample, "\x1b[48;"); idx >= 0 {
+		endIdx := strings.Index(bgSample[idx:], "m")
+		if endIdx > 0 {
+			bgCode = bgSample[idx : idx+endIdx+1]
+		}
+	}
+
+	lines := strings.Split(content, "\n")
+	for i, line := range lines {
+		// Replace [0m (reset) with [0m + background code to preserve background
+		if bgCode != "" {
+			line = strings.ReplaceAll(line, "\x1b[0m", "\x1b[0m"+bgCode)
+		}
+		lines[i] = m.styles.ContentBg.Width(width).Render(line)
+	}
+	return strings.Join(lines, "\n")
 }
 
 func (m *ReaderModel) extractBody(content string) string {
