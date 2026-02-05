@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"html/template"
+	"errors"
 	"io"
 	"log"
 	"net/http"
@@ -517,14 +518,18 @@ func (s *HTTPServer) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			default:
 				n, err := ptmx.Read(buf)
 				if err != nil {
-					if err != io.EOF {
+					// EIO is expected when the PTY child process exits
+					if err != io.EOF && !errors.Is(err, syscall.EIO) {
 						log.Printf("PTY read error: %v", err)
 					}
 					return
 				}
 				if n > 0 {
 					if err := conn.WriteMessage(websocket.BinaryMessage, buf[:n]); err != nil {
-						log.Printf("WebSocket write error: %v", err)
+						if !websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway) &&
+							!strings.Contains(err.Error(), "close sent") {
+							log.Printf("WebSocket write error: %v", err)
+						}
 						return
 					}
 				}
