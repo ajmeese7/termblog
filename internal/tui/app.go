@@ -23,6 +23,7 @@ const (
 	ViewSearch
 	ViewHelp
 	ViewThemeSelector
+	ViewAdmin
 )
 
 // KeyMap defines the key bindings
@@ -136,6 +137,7 @@ type Model struct {
 	reader        *ReaderModel
 	search        *SearchModel
 	themeSelector *ThemeSelectorModel
+	admin         *AdminModel
 
 	// Window dimensions
 	width  int
@@ -201,6 +203,7 @@ func NewWithPreferences(repo *storage.PostRepository, loader *blog.ContentLoader
 	m.reader = NewReaderModel(styles, themeNames[currentIndex])
 	m.search = NewSearchModel(repo, loader, styles)
 	m.themeSelector = NewThemeSelectorModel(themes, themeNames, currentIndex, styles, m.keyMap)
+	m.admin = NewAdminModel(repo, styles, cfg.ContentDir, cfg.Author)
 
 	return m
 }
@@ -239,6 +242,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.reader.SetSize(msg.Width, msg.Height-2)
 		m.search.SetSize(msg.Width, msg.Height-2)
 		m.themeSelector.SetSize(msg.Width, msg.Height-2)
+		m.admin.SetSize(msg.Width, msg.Height-2)
 
 	case tea.KeyMsg:
 		// Handle quit in any view
@@ -268,6 +272,13 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if key.Matches(msg, m.keyMap.Back) && m.currentView == ViewHelp {
 			m.currentView = m.prevView
 			return m, tea.ClearScreen
+		}
+
+		// Handle admin toggle (a key) - only for admins, not in search/admin views
+		if msg.String() == "a" && m.isAdmin && m.currentView != ViewSearch && m.currentView != ViewAdmin {
+			m.prevView = m.currentView
+			m.currentView = ViewAdmin
+			return m, tea.Batch(tea.ClearScreen, m.admin.Init())
 		}
 
 	case PostSelectedMsg:
@@ -352,6 +363,20 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.themeSelector.SetStyles(m.styles)
 		m.currentView = m.prevView
 		return m, tea.Batch(tea.ClearScreen, emitWebThemeCmd(m.themeNames[m.themeIndex]))
+
+	case AdminCloseMsg:
+		// Close admin view
+		m.currentView = m.prevView
+		// Refresh the list in case posts changed
+		return m, tea.Batch(tea.ClearScreen, m.list.Init())
+
+	case AdminNewPostMsg:
+		// Launch editor for new post
+		return m, m.launchEditorForNewPost()
+
+	case AdminEditPostMsg:
+		// Launch editor for existing post
+		return m, m.launchEditorForPost(msg.Post)
 	}
 
 	// Route updates to current view
@@ -374,6 +399,11 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case ViewThemeSelector:
 		var cmd tea.Cmd
 		m.themeSelector, cmd = m.themeSelector.Update(msg)
+		cmds = append(cmds, cmd)
+
+	case ViewAdmin:
+		var cmd tea.Cmd
+		m.admin, cmd = m.admin.Update(msg)
 		cmds = append(cmds, cmd)
 	}
 
@@ -399,6 +429,8 @@ func (m *Model) View() string {
 		content = m.renderHelp()
 	case ViewThemeSelector:
 		content = m.themeSelector.View()
+	case ViewAdmin:
+		content = m.admin.View()
 	}
 
 	// Build the full view with header and footer
@@ -454,6 +486,7 @@ func (m *Model) renderHelpHint() string {
 	searchHint := hint("/", "search")
 	themeHint := hint("t", "theme")
 	quitHint := hint("q", "quit")
+	adminHint := hint("a", "admin")
 
 	var hints []string
 
@@ -462,12 +495,20 @@ func (m *Model) renderHelpHint() string {
 		hints = []string{hint("esc", "close"), themeHint, quitHint}
 	case ViewReader:
 		hints = []string{hint("esc", "back"), helpHint, searchHint, themeHint, quitHint}
+		if m.isAdmin {
+			hints = append(hints[:len(hints)-1], adminHint, quitHint)
+		}
 	case ViewSearch:
 		hints = []string{hint("esc", "cancel")}
 	case ViewThemeSelector:
 		hints = []string{hint("↑/↓", "navigate"), hint("enter", "select"), hint("esc", "cancel")}
+	case ViewAdmin:
+		hints = []string{hint("n", "new"), hint("e", "edit"), hint("d", "delete"), hint("p", "publish"), hint("esc", "back")}
 	default:
 		hints = []string{helpHint, searchHint, themeHint, quitHint}
+		if m.isAdmin {
+			hints = append(hints[:len(hints)-1], adminHint, quitHint)
+		}
 	}
 
 	separator := m.styles.HelpDesc.Render("  │  ")
@@ -538,6 +579,26 @@ func (m *Model) cycleTheme() tea.Cmd {
 
 // clearStatusMsg is sent to clear the status message after a delay
 type clearStatusMsg struct{}
+
+// launchEditorForNewPost opens $EDITOR for creating a new post
+func (m *Model) launchEditorForNewPost() tea.Cmd {
+	return func() tea.Msg {
+		return StatusMsg{
+			Message: "Editor integration not yet implemented",
+			IsError: true,
+		}
+	}
+}
+
+// launchEditorForPost opens $EDITOR for editing an existing post
+func (m *Model) launchEditorForPost(post *storage.Post) tea.Cmd {
+	return func() tea.Msg {
+		return StatusMsg{
+			Message: "Editor integration not yet implemented",
+			IsError: true,
+		}
+	}
+}
 
 // Messages
 
