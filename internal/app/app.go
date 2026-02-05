@@ -12,7 +12,15 @@ type Config struct {
 	Blog    BlogConfig    `yaml:"blog"`
 	Server  ServerConfig  `yaml:"server"`
 	Storage StorageConfig `yaml:"storage"`
+	Admin   AdminConfig   `yaml:"admin"`
 	Theme   string        `yaml:"theme"`
+}
+
+// AdminConfig holds admin authentication settings
+type AdminConfig struct {
+	// Fingerprints is a list of SSH key fingerprints allowed to access admin features
+	// Format: SHA256:... (as shown by `ssh-keygen -lf ~/.ssh/id_ed25519.pub`)
+	Fingerprints []string `yaml:"fingerprints"`
 }
 
 // BlogConfig holds blog-specific settings
@@ -136,4 +144,14 @@ func (a *App) HostKeyPath() string {
 		return a.Config.Server.HostKeyPath
 	}
 	return filepath.Join(a.Root, a.Config.Server.HostKeyPath)
+}
+
+// IsAdmin checks if the given SSH fingerprint is in the admin whitelist
+func (a *App) IsAdmin(fingerprint string) bool {
+	for _, fp := range a.Config.Admin.Fingerprints {
+		if fp == fingerprint {
+			return true
+		}
+	}
+	return false
 }

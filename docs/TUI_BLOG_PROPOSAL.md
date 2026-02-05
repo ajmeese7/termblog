@@ -133,222 +133,209 @@ Alternatively, a web-based admin panel at `/admin` with a simple markdown editor
 
 ## Detailed Implementation TODO
 
-### Phase 1: Core Infrastructure (Foundation)
+### Phase 1: Core Infrastructure (Foundation) ✅ COMPLETE
 
 #### 1.1 Project Setup
-- [ ] Initialize Go module (`go mod init github.com/ajmeese7/termblog`)
-- [ ] Set up directory structure:
+- [x] Initialize Go module (`go mod init github.com/ajmeese7/termblog`)
+- [x] Set up directory structure:
   ```
   termblog/
   ├── cmd/
   │   └── termblog/
   │       └── main.go
   ├── internal/
+  │   ├── app/            # Configuration management
   │   ├── blog/           # Core blog logic
-  │   ├── ssh/            # SSH server (Wish)
-  │   ├── web/            # HTTP server
+  │   ├── server/         # SSH and HTTP servers
   │   ├── tui/            # Bubbletea models
   │   ├── storage/        # SQLite + filesystem
-  │   └── theme/          # Terminal themes
+  │   ├── theme/          # Terminal themes
+  │   └── version/        # Build-time version info
   ├── content/
   │   └── posts/          # Markdown files
-  ├── web/
-  │   ├── static/         # CSS, JS (xterm.js)
-  │   └── templates/      # HTML templates
-  ├── themes/             # Terminal color schemes
   └── config.yaml
   ```
-- [ ] Add core dependencies:
+- [x] Add core dependencies:
   - `github.com/charmbracelet/bubbletea`
   - `github.com/charmbracelet/wish`
   - `github.com/charmbracelet/lipgloss`
   - `github.com/charmbracelet/glamour`
   - `github.com/mattn/go-sqlite3`
   - `gopkg.in/yaml.v3`
-- [ ] Create configuration system (YAML-based)
-- [ ] Set up basic logging
+  - `github.com/fsnotify/fsnotify` (file watching)
+  - `github.com/gorilla/feeds` (RSS/Atom/JSON feeds)
+  - `github.com/gorilla/websocket` (web terminal)
+  - `github.com/spf13/cobra` (CLI)
+- [x] Create configuration system (YAML-based)
+- [x] Set up basic logging
 
 #### 1.2 Storage Layer
-- [ ] Design SQLite schema:
+- [x] Design SQLite schema:
   ```sql
   -- Posts metadata (content in filesystem)
   CREATE TABLE posts (
-    id TEXT PRIMARY KEY,
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
     slug TEXT UNIQUE NOT NULL,
     title TEXT NOT NULL,
-    created_at DATETIME,
-    updated_at DATETIME,
+    filepath TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'draft' CHECK(status IN ('draft', 'published', 'scheduled')),
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     published_at DATETIME,
-    status TEXT CHECK(status IN ('draft', 'published', 'scheduled')),
-    tags TEXT,  -- JSON array
-    filepath TEXT NOT NULL
-  );
-
-  -- Themes
-  CREATE TABLE themes (
-    id TEXT PRIMARY KEY,
-    name TEXT NOT NULL,
-    config TEXT NOT NULL  -- JSON: colors, styles
+    tags TEXT DEFAULT '[]'
   );
 
   -- Settings
   CREATE TABLE settings (
     key TEXT PRIMARY KEY,
-    value TEXT
+    value TEXT NOT NULL
+  );
+
+  -- User preferences (theme by SSH fingerprint)
+  CREATE TABLE user_preferences (
+    fingerprint TEXT PRIMARY KEY,
+    theme TEXT,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
   ```
-- [ ] Implement post repository (CRUD operations)
-- [ ] Implement filesystem watcher for hot-reload of markdown files
-- [ ] Build markdown parser with frontmatter support:
-  ```yaml
-  ---
-  title: My Post
-  date: 2026-01-28
-  tags: [go, tui, blog]
-  status: published
-  ---
-  # Content here...
-  ```
+- [x] Implement post repository (CRUD operations)
+- [x] Implement filesystem watcher for hot-reload of markdown files
+- [x] Build markdown parser with frontmatter support
 
 #### 1.3 Blog Engine Core
-- [ ] Post listing with pagination
-- [ ] Post retrieval by slug
-- [ ] Tag-based filtering
-- [ ] Full-text search (SQLite FTS5)
-- [ ] RSS/Atom feed generation
-- [ ] Sitemap generation
+- [x] Post listing with pagination
+- [x] Post retrieval by slug
+- [x] Tag-based filtering (via HTTP routes /tags/:tag)
+- [x] Search (LIKE-based on titles and tags)
+- [ ] Full-text search (SQLite FTS5) - *using LIKE instead*
+- [x] RSS/Atom/JSON feed generation
+- [x] Sitemap generation
 
-### Phase 2: TUI Reader Interface
+### Phase 2: TUI Reader Interface ✅ COMPLETE
 
 #### 2.1 Bubbletea Models
-- [ ] **Main Menu Model**: Navigation hub
+- [x] **Main Menu Model**: Navigation hub
   - Recent posts list
   - Search prompt
   - Theme selector
-  - About/RSS info
-- [ ] **Post List Model**: Paginated, filterable post listing
-  - Vim-style navigation (j/k/gg/G)
-  - Tag filtering
-  - Sort options (date, title)
-- [ ] **Post Reader Model**: Full post display
+  - Help overlay
+- [x] **Post List Model**: Paginated, filterable post listing
+  - Vim-style navigation (j/k/gg/G, ctrl+d/u, ctrl+f/b)
+  - Mouse scrolling (SSH only)
+- [ ] Tag filtering in TUI (only via web /tags/:tag)
+- [ ] Sort options (date, title) - *only date sorting*
+- [x] **Post Reader Model**: Full post display
   - Glamour markdown rendering
   - Scrolling (mouse + keyboard)
-  - Link extraction and display
   - "Back to list" navigation
-- [ ] **Search Model**: Interactive search
+- [ ] Link extraction and display
+- [x] **Search Model**: Interactive search
   - Real-time filtering
-  - Search in titles + content
-  - Highlight matches
-- [ ] **Theme Selector Model**: Live theme preview
+  - Search in titles + tags
+- [ ] Highlight matches
+- [x] **Theme Selector Model**: Live theme preview
   - Cycle through installed themes
   - Instant preview
 
 #### 2.2 Terminal Themes System
-- [ ] Design theme specification format (JSON/YAML):
-  ```yaml
-  name: "Pip-Boy Green"
-  colors:
-    background: "#0a0a0a"
-    foreground: "#00ff00"
-    accent: "#00cc00"
-    muted: "#006600"
-    border: "#00ff00"
-  styles:
-    title: bold
-    date: italic
-    tag: reverse
-  ```
-- [ ] Implement built-in themes:
-  - [ ] **Monochrome**: Pure black and white
-  - [ ] **Pip-Boy**: Green phosphor CRT aesthetic
-  - [ ] **Amber**: Amber monochrome terminal
-  - [ ] **Matrix**: Green on black, "digital rain" feel
-  - [ ] **Paper**: Light theme, like thermal printer output
-- [ ] Theme persistence (remember user choice via SSH key fingerprint)
-- [ ] Theme hot-reload for development
+- [x] Design theme specification format (Go structs with YAML loading support)
+- [x] Implement built-in themes:
+  - [x] **Monochrome**: Pure black and white
+  - [x] **Pip-Boy**: Green phosphor CRT aesthetic
+  - [x] **Amber**: Amber monochrome terminal
+  - [x] **Matrix**: Green on black, "digital rain" feel
+  - [x] **Paper**: Light theme, like thermal printer output
+  - [x] **Dracula**: Dark theme with vibrant colors
+  - [x] **Nord**: Arctic, north-bluish palette
+  - [x] **Monokai**: Classic Monokai scheme
+- [x] Theme persistence (remember user choice via SSH key fingerprint)
+- [x] Custom theme loading from YAML files
+- [ ] Theme hot-reload for development (themes are Go code)
 
 #### 2.3 Visual Polish
-- [ ] ASCII art header/logo support
+- [x] ASCII art header/logo support (config option)
 - [ ] Animated transitions (subtle, optional)
-- [ ] Loading spinners for slow operations
-- [ ] Box drawing characters for borders
-- [ ] Status bar with current location/time
+- [x] Loading states ("Loading..." message)
+- [x] Box drawing characters for borders (Lipgloss)
+- [x] Status bar with current location/hints
 
-### Phase 3: SSH Server
+### Phase 3: SSH Server ✅ COMPLETE
 
 #### 3.1 Wish Integration
-- [ ] Basic SSH server setup with Wish
-- [ ] Host key generation and management
-- [ ] Banner/MOTD display on connect
-- [ ] Graceful connection handling
-- [ ] Rate limiting (prevent abuse)
-- [ ] Connection logging
+- [x] Basic SSH server setup with Wish
+- [x] Host key generation and management
+- [x] Exit message display after TUI closes
+- [x] MOTD support (config option)
+- [x] Graceful connection handling
+- [x] Rate limiting (configurable limit/window)
+- [x] Connection logging
 
 #### 3.2 Authentication (Optional)
-- [ ] Public key authentication for admin access
-- [ ] Anonymous read access (default)
-- [ ] `~/.ssh/authorized_keys` integration
+- [x] Public key authentication (for fingerprint tracking)
+- [x] Anonymous read access (default)
+- [ ] `~/.ssh/authorized_keys` integration for admin
 
 #### 3.3 SSH Commands (Non-TUI Mode)
-- [ ] `ssh blog.yoursite.com posts` - List posts as plain text
-- [ ] `ssh blog.yoursite.com read <slug>` - Output post to stdout
-- [ ] `ssh blog.yoursite.com rss` - Output RSS feed
-- [ ] `ssh blog.yoursite.com search <query>` - Search posts
+- [x] `ssh blog.yoursite.com posts` - List posts as plain text
+- [x] `ssh blog.yoursite.com read <slug>` - Output post to stdout
+- [x] `ssh blog.yoursite.com read <slug> --rendered` - Output plain text
+- [x] `ssh blog.yoursite.com rss` - Output RSS feed
+- [x] `ssh blog.yoursite.com search <query>` - Search posts
+- [x] `ssh blog.yoursite.com help` - Show available commands
 
-### Phase 4: Web Interface
+### Phase 4: Web Interface ✅ COMPLETE
 
 #### 4.1 Web Terminal (xterm.js)
-- [ ] Minimal HTML page that loads xterm.js
-- [ ] WebSocket proxy to SSH/TUI backend
-- [ ] Mobile-responsive terminal sizing
-- [ ] Touch support for mobile
-- [ ] Copy/paste support
-- [ ] Connection status indicator
-- [ ] Reconnection logic
+- [x] Minimal HTML page that loads xterm.js
+- [x] WebSocket proxy to PTY backend
+- [x] Mobile-responsive terminal sizing
+- [x] Copy/paste support (Ctrl+C copies selection)
+- [x] Connection status indicator
+- [x] Reconnection logic with exponential backoff
+- [x] Theme sync via OSC 7777 sequences
+- [x] Theme persistence in localStorage
+- [ ] Touch support for mobile (basic xterm.js only)
 
 #### 4.2 Static HTML Fallback
-- [ ] Minimal HTML templates for:
-  - [ ] Homepage/post list
-  - [ ] Individual post pages
-  - [ ] Tag pages
+- [x] Minimal HTML templates for:
+  - [x] Archive/post list (/archive)
+  - [x] Individual post pages (/posts/:slug)
+  - [x] Tag pages (/tags/:tag)
   - [ ] RSS feed page (with subscription instructions)
-- [ ] Terminal-inspired CSS theme (optional)
-- [ ] Zero JavaScript requirement
-- [ ] Proper semantic HTML for accessibility
-- [ ] OpenGraph/Twitter meta tags
+- [x] Terminal-inspired CSS theme (uses config theme colors)
+- [x] Zero JavaScript requirement (for static pages)
+- [x] Proper semantic HTML for accessibility
+- [x] OpenGraph/Twitter meta tags
 
 #### 4.3 HTTP Server
-- [ ] Route handling:
-  - `GET /` - Web terminal or post list
+- [x] Route handling:
+  - `GET /` - Web terminal
+  - `GET /archive` - Post list (static HTML)
   - `GET /posts/:slug` - Post page
   - `GET /tags/:tag` - Tag listing
   - `GET /feed.xml` - RSS feed
   - `GET /feed.json` - JSON feed
   - `GET /sitemap.xml` - Sitemap
+  - `GET /robots.txt` - Robots file
   - `GET /ws` - WebSocket for terminal
+  - `GET /health` - Health check endpoint
 - [ ] Content negotiation (HTML vs JSON API)
-- [ ] Static file serving
-- [ ] Gzip compression
-- [ ] Cache headers
+- [x] Static file serving (embedded)
+- [x] Gzip compression middleware
+- [x] Cache headers
 
-### Phase 5: Admin Interface
+### Phase 5: Admin Interface 🔶 PARTIAL
 
 #### 5.1 Admin TUI (via SSH)
 - [ ] Authenticate via SSH key
-- [ ] Post management:
+- [ ] Post management via TUI:
   - [ ] Create new post (opens $EDITOR or built-in)
   - [ ] Edit existing post
   - [ ] Delete post (with confirmation)
   - [ ] Publish/unpublish toggle
   - [ ] Schedule post for future
-- [ ] Theme management:
-  - [ ] Upload new theme
-  - [ ] Set default theme
-  - [ ] Delete theme
-- [ ] Settings:
-  - [ ] Blog title, description, author
-  - [ ] Posts per page
-  - [ ] Enable/disable features
+- [ ] Theme management via TUI
+- [ ] Settings via TUI
 - [ ] Simple analytics (view counts, popular posts)
 
 #### 5.2 Admin Web UI (Alternative)
@@ -359,49 +346,56 @@ Alternatively, a web-based admin panel at `/admin` with a simple markdown editor
 - [ ] Settings panel
 
 #### 5.3 CLI Management Tool
-- [ ] `termblog new "Post Title"` - Create new post file
-- [ ] `termblog publish <slug>` - Publish a draft
-- [ ] `termblog serve` - Start server
+- [x] `termblog new "Post Title"` - Create new post file
+- [x] `termblog publish <slug>` - Publish a draft
+- [x] `termblog unpublish <slug>` - Revert to draft
+- [x] `termblog delete <slug>` - Delete post (optional -r to remove file)
+- [x] `termblog list` - List all posts with status
+- [x] `termblog schedule <slug> <datetime>` - Schedule post for future
+- [x] `termblog sync` - Sync markdown files to database
+- [x] `termblog serve` - Start server (--ssh-only, --http-only flags)
+- [x] `termblog version` - Show version info (--full for commit/date)
 - [ ] `termblog import <hugo|jekyll|bearblog>` - Import from other platforms
 
-### Phase 6: Advanced Features
+### Phase 6: Advanced Features 🔶 PARTIAL
 
 #### 6.1 Content Features
-- [ ] Code syntax highlighting (in terminal!)
+- [x] Code syntax highlighting (via Glamour/Chroma)
 - [ ] Image support:
-  - ASCII art conversion for terminal
-  - Normal images in web view
+  - [ ] ASCII art conversion for terminal
+  - [ ] Normal images in web view
 - [ ] Post series/collections
 - [ ] Related posts suggestions
-- [ ] Reading time estimates
+- [x] Reading time estimates
 - [ ] Table of contents generation
 
 #### 6.2 Engagement Features
 - [ ] Simple view counter
-- [ ] "Newsletter" via RSS (with instructions)
+- [ ] "Newsletter" via RSS (with instructions page)
 - [ ] Webmention support
 - [ ] Comment system (optional, maybe via GitHub issues)
 
 #### 6.3 Developer Experience
-- [ ] Hot reload in development
-- [ ] Docker image
-- [ ] Docker Compose with Caddy/Traefik
+- [x] Hot reload in development (file watcher)
+- [x] Docker image (multi-stage build)
+- [x] Docker Compose with Caddy example (commented)
 - [ ] Systemd service file
 - [ ] Ansible playbook for deployment
-- [ ] GitHub Actions for CI/CD
-- [ ] Health check endpoint
+- [x] GitHub Actions for CI/CD (release workflow)
+- [x] Health check endpoint (/health)
 
-### Phase 7: Documentation & Polish
+### Phase 7: Documentation & Polish 🔶 PARTIAL
 
 #### 7.1 User Documentation
-- [ ] README with quick start
-- [ ] Installation guide (binary, Docker, source)
-- [ ] Configuration reference
-- [ ] Theme creation guide
+- [x] README with quick start
+- [x] Installation guide (binary, Docker, source)
+- [x] Configuration reference (docs/CONFIGURATION.md)
+- [x] Theme creation guide (docs/THEMES.md)
+- [x] Release process guide (docs/RELEASING.md)
 - [ ] Migration guides (from Hugo, Jekyll, etc.)
 
 #### 7.2 Final Polish
-- [ ] Error handling review
+- [x] Basic error handling
 - [ ] Security audit (SSH, input validation)
 - [ ] Performance optimization
 - [ ] Accessibility review (screen reader support in web)
@@ -411,7 +405,7 @@ Alternatively, a web-based admin panel at `/admin` with a simple markdown editor
 
 ## Milestones & Suggested Order
 
-### MVP (Minimum Viable Product)
+### MVP (Minimum Viable Product) ✅ COMPLETE
 1. Phase 1.1-1.3: Core infrastructure
 2. Phase 2.1-2.2: Basic TUI reader
 3. Phase 3.1: SSH server
@@ -419,31 +413,68 @@ Alternatively, a web-based admin panel at `/admin` with a simple markdown editor
 
 **MVP Deliverable**: SSH into your blog, browse posts, read them, get RSS feed.
 
-### Beta Release
+### Beta Release ✅ COMPLETE
 5. Phase 4.1-4.3: Web interface with xterm.js
 6. Phase 2.3: Visual polish
 7. Phase 5.3: CLI management tool
 
 **Beta Deliverable**: Full reader experience via SSH and web, basic content management.
 
-### 1.0 Release
-8. Phase 5.1-5.2: Full admin interface
-9. Phase 6.1-6.2: Advanced content features
-10. Phase 7: Documentation and polish
+### 1.0 Release 🔶 IN PROGRESS
+8. Phase 5.1-5.2: Full admin interface (NOT STARTED)
+9. Phase 6.1-6.2: Advanced content features (PARTIAL)
+10. Phase 7: Documentation and polish (PARTIAL)
+
+---
+
+## Current Project Status (as of 2026-02-05)
+
+### Completed Features
+- Full TUI reader with 8 built-in themes
+- SSH server with rate limiting, MOTD, non-interactive commands
+- Web terminal with xterm.js, theme sync, reconnection
+- Static HTML pages (archive, posts, tags) with SEO tags
+- RSS/Atom/JSON feeds and sitemap
+- CLI tools: new, publish, unpublish, delete, list, schedule, sync, serve
+- Docker + Docker Compose support
+- GitHub Actions release workflow
+- File watcher for auto-sync
+- Theme persistence per SSH fingerprint
+
+### Remaining Work for 1.0
+
+**High Priority:**
+- [ ] Admin TUI interface (create/edit/delete posts via SSH)
+- [ ] Import tool for Hugo/Jekyll migration
+- [ ] View counter/analytics
+
+**Medium Priority:**
+- [ ] Full-text search (FTS5) instead of LIKE
+- [ ] Tag filtering in TUI
+- [ ] Table of contents generation
+- [ ] RSS instructions page
+
+**Low Priority/Nice-to-have:**
+- [ ] Image support (ASCII art conversion)
+- [ ] Post series/collections
+- [ ] Webmention/comments
+- [ ] Systemd service file
+- [ ] Security audit
+- [ ] Cross-terminal testing
 
 ---
 
 ## Estimated Complexity
 
-| Phase | Complexity | Key Challenges |
-|-------|------------|----------------|
-| Phase 1 | Medium | SQLite schema design, config system |
-| Phase 2 | High | Bubbletea state management, theme system |
-| Phase 3 | Low | Wish makes this straightforward |
-| Phase 4 | Medium | WebSocket proxy, mobile support |
-| Phase 5 | Medium | Editor integration, file management |
-| Phase 6 | Variable | Syntax highlighting in terminal is tricky |
-| Phase 7 | Low | Documentation writing |
+| Phase | Complexity | Status |
+|-------|------------|--------|
+| Phase 1 | Medium | ✅ Complete |
+| Phase 2 | High | ✅ Complete |
+| Phase 3 | Low | ✅ Complete |
+| Phase 4 | Medium | ✅ Complete |
+| Phase 5 | Medium | 🔶 CLI done, TUI/Web admin not started |
+| Phase 6 | Variable | 🔶 Partial (syntax highlighting, reading time) |
+| Phase 7 | Low | 🔶 Partial (docs exist, polish remaining) |
 
 ---
 

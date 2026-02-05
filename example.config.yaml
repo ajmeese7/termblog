@@ -45,6 +45,16 @@ storage:
   # SQLite database path (relative to config file)
   database_path: "termblog.db"
 
+# Admin settings (SSH-only, not available via web terminal)
+admin:
+  # SSH key fingerprints allowed to access admin features
+  # Get your fingerprint with: ssh-keygen -lf ~/.ssh/id_ed25519.pub
+  # Format: SHA256:...
+  fingerprints: []
+  # Example:
+  # fingerprints:
+  #   - "SHA256:abcdef1234567890abcdef1234567890abcdef12"
+
 # Theme name: pipboy, dracula, nord, monokai, monochrome, amber, matrix, paper
 # Or path to custom theme YAML file
 theme: "dracula"
