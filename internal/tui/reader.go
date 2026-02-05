@@ -9,6 +9,7 @@ import (
 	"github.com/ajmeese7/termblog/internal/storage"
 	"github.com/ajmeese7/termblog/internal/theme"
 	"github.com/ajmeese7/termblog/internal/theme/styles"
+	chromaStyles "github.com/alecthomas/chroma/styles"
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
@@ -177,6 +178,10 @@ func (m *ReaderModel) renderContent() {
 		// Fallback to built-in dark style
 		styleJSON, _ = styles.GetStyle("pipboy")
 	}
+
+	// Clear cached chroma style so glamour re-registers with current theme's colors.
+	// Glamour v0.6.0 caches under the fixed name "charm" and skips re-registration.
+	delete(chromaStyles.Registry, "charm")
 
 	// Create a glamour renderer with custom style
 	renderer, err := glamour.NewTermRenderer(

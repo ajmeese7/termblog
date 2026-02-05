@@ -23,8 +23,8 @@
   "h1": {
     "prefix": " ",
     "suffix": " ",
-    "color": "#f5f5dc",
-    "background_color": "#1a1a1a",
+    "color": "#1a1a1a",
+    "background_color": "#c0c0a8",
     "bold": true
   },
   "h2": {

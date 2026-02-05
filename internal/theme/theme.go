@@ -171,7 +171,7 @@ func MatrixTheme() *Theme {
 			Secondary:  "#008f11", // Dark matrix green
 			Background: "#0d0208", // Near black with slight green
 			Text:       "#00ff41", // Matrix green
-			Muted:      "#003b00", // Very dark green
+			Muted:      "#006b00", // Dark green
 			Accent:     "#39ff14", // Neon green
 			Error:      "#ff0000", // Red (system error)
 			Success:    "#00ff41", // Matrix green

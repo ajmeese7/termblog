@@ -91,7 +91,7 @@ func (m *ThemeSelectorModel) View() string {
 	var lines []string
 	currentTheme := m.themes[m.cursor]
 	bg := lipgloss.Color(currentTheme.Colors.Background)
-	contentWidth := m.width - 4
+	contentWidth := m.width
 	if contentWidth < 20 {
 		contentWidth = 20
 	}
