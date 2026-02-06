@@ -367,7 +367,7 @@ Alternatively, a web-based admin panel at `/admin` with a simple markdown editor
 - [ ] Post series/collections
 - [ ] Related posts suggestions
 - [x] Reading time estimates
-- [ ] Table of contents generation
+- [x] Table of contents generation
 
 #### 6.2 Engagement Features
 - [ ] Simple view counter
@@ -451,7 +451,7 @@ Alternatively, a web-based admin panel at `/admin` with a simple markdown editor
 **Medium Priority:**
 - [x] Full-text search (FTS5) instead of LIKE
 - [ ] Tag filtering in TUI
-- [ ] Table of contents generation
+- [x] Table of contents generation
 - [ ] RSS instructions page
 
 **Low Priority/Nice-to-have:**

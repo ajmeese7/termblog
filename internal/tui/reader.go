@@ -3,6 +3,7 @@ package tui
 import (
 	"fmt"
 	"os"
+	"regexp"
 	"strings"
 
 	"github.com/ajmeese7/termblog/internal/blog"
@@ -196,6 +197,11 @@ func (m *ReaderModel) renderContent() {
 	// Extract just the body (skip frontmatter)
 	body := m.extractBody(m.content)
 
+	// Generate and prepend table of contents if there are headings
+	if toc := generateTOC(body); toc != "" {
+		body = toc + "\n" + body
+	}
+
 	// Preprocess to fix nested blockquotes (glamour doesn't support them)
 	body = preprocessNestedBlockquotes(body)
 
@@ -272,6 +278,65 @@ func preprocessNestedBlockquotes(content string) string {
 	}
 
 	return strings.Join(result, "\n")
+}
+
+// tocHeading represents a heading extracted from markdown
+type tocHeading struct {
+	level int
+	text  string
+}
+
+// headingRegex matches ATX-style markdown headings (## Heading)
+var headingRegex = regexp.MustCompile(`^(#{2,6})\s+(.+)$`)
+
+// generateTOC extracts headings from markdown and generates a table of contents
+// Only generates TOC if there are 2 or more headings
+func generateTOC(content string) string {
+	lines := strings.Split(content, "\n")
+	var headings []tocHeading
+	inCodeBlock := false
+
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+
+		// Track code blocks to avoid matching headings inside them
+		if strings.HasPrefix(trimmed, "```") {
+			inCodeBlock = !inCodeBlock
+			continue
+		}
+		if inCodeBlock {
+			continue
+		}
+
+		if matches := headingRegex.FindStringSubmatch(trimmed); matches != nil {
+			level := len(matches[1]) // Number of # characters
+			text := strings.TrimSpace(matches[2])
+			headings = append(headings, tocHeading{level: level, text: text})
+		}
+	}
+
+	// Only show TOC if there are enough headings to be useful
+	if len(headings) < 2 {
+		return ""
+	}
+
+	// Find the minimum heading level to normalize indentation
+	minLevel := 6
+	for _, h := range headings {
+		if h.level < minLevel {
+			minLevel = h.level
+		}
+	}
+
+	// Build the TOC as a markdown list
+	var toc strings.Builder
+	toc.WriteString("**Contents**\n\n")
+	for _, h := range headings {
+		indent := strings.Repeat("  ", h.level-minLevel)
+		toc.WriteString(fmt.Sprintf("%s- %s\n", indent, h.text))
+	}
+
+	return toc.String()
 }
 
 // Helper function to load post content from file
