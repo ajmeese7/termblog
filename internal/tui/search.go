@@ -268,16 +268,21 @@ func (m *SearchModel) selectResult() tea.Cmd {
 	}
 }
 
-// fixResetCodes replaces ANSI reset codes with reset+background to preserve themed background
-func fixResetCodes(content string, bgStyle lipgloss.Style) string {
+// extractBgCode extracts the ANSI background color code from a lipgloss style
+func extractBgCode(bgStyle lipgloss.Style) string {
 	bgSample := bgStyle.Render("")
-	bgCode := ""
 	if idx := strings.Index(bgSample, "\x1b[48;"); idx >= 0 {
 		endIdx := strings.Index(bgSample[idx:], "m")
 		if endIdx > 0 {
-			bgCode = bgSample[idx : idx+endIdx+1]
+			return bgSample[idx : idx+endIdx+1]
 		}
 	}
+	return ""
+}
+
+// fixResetCodes replaces ANSI reset codes with reset+background to preserve themed background
+func fixResetCodes(content string, bgStyle lipgloss.Style) string {
+	bgCode := extractBgCode(bgStyle)
 	if bgCode != "" {
 		content = strings.ReplaceAll(content, "\x1b[0m", "\x1b[0m"+bgCode)
 	}

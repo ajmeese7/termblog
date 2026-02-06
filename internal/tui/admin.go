@@ -178,22 +178,24 @@ func (m *AdminModel) Update(msg tea.Msg) (*AdminModel, tea.Cmd) {
 func (m *AdminModel) View() string {
 	var sections []string
 
+	emptyLine := m.styles.ContentBg.Width(m.width).Render("")
+
 	// Title
 	title := m.styles.Title.Render("Admin: Post Management")
 	sections = append(sections, title)
-	sections = append(sections, "")
+	sections = append(sections, emptyLine)
 
 	// Error message
 	if m.err != nil {
 		sections = append(sections, m.styles.StatusError.Render(fmt.Sprintf("Error: %v", m.err)))
-		sections = append(sections, "")
+		sections = append(sections, emptyLine)
 	}
 
 	// Delete confirmation
 	if m.confirmDelete && m.deleteTarget != nil {
 		confirmMsg := fmt.Sprintf("Delete '%s'? (y/n)", m.deleteTarget.Title)
 		sections = append(sections, m.styles.StatusError.Render(confirmMsg))
-		sections = append(sections, "")
+		sections = append(sections, emptyLine)
 	}
 
 	// Posts list
@@ -230,14 +232,19 @@ func (m *AdminModel) View() string {
 		}
 	}
 
-	sections = append(sections, "")
-
-	// Help
-	help := m.renderHelp()
-	sections = append(sections, help)
-
 	content := lipgloss.JoinVertical(lipgloss.Left, sections...)
-	return m.styles.ContentBg.Width(m.width).Render(content)
+
+	// Pad each line with background color to fill full width,
+	// replacing reset codes that would clear the themed background
+	lines := strings.Split(content, "\n")
+	bgCode := extractBgCode(m.styles.ContentBg)
+	for i, line := range lines {
+		if bgCode != "" {
+			line = strings.ReplaceAll(line, "\x1b[0m", "\x1b[0m"+bgCode)
+		}
+		lines[i] = m.styles.ContentBg.Width(m.width).Render(line)
+	}
+	return strings.Join(lines, "\n")
 }
 
 // renderPostItem renders a single post in the list
@@ -259,12 +266,20 @@ func (m *AdminModel) renderPostItem(idx int, post *storage.Post) string {
 		}
 	}
 
-	// Title
-	var title string
+	// Build title line with status inline
+	// Use inline styling to avoid padding that forces line wraps
+	var line1 string
 	if isSelected {
-		title = m.styles.ListSelected.Render("► " + post.Title)
+		titleStyle := lipgloss.NewStyle().
+			Foreground(m.styles.ListSelected.GetForeground()).
+			Background(m.styles.ListSelected.GetBackground()).
+			Bold(true)
+		line1 = titleStyle.Render("► "+post.Title) + " " + status
 	} else {
-		title = m.styles.ListItem.Render("  " + post.Title)
+		titleStyle := lipgloss.NewStyle().
+			Foreground(m.styles.ListItem.GetForeground()).
+			Background(m.styles.ListItem.GetBackground())
+		line1 = titleStyle.Render("  "+post.Title) + " " + status
 	}
 
 	// Date
@@ -283,9 +298,6 @@ func (m *AdminModel) renderPostItem(idx int, post *storage.Post) string {
 		}
 	}
 
-	// Format: ► Title [status]
-	//           2006-01-02 | slug | views
-	line1 := title + " " + status
 	line2 := m.styles.ListDate.Render(fmt.Sprintf("    %s | %s%s", dateStr, post.Slug, viewInfo))
 
 	return lipgloss.JoinVertical(lipgloss.Left, line1, line2)
