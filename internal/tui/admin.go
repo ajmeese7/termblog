@@ -15,13 +15,15 @@ import (
 // AdminModel handles the admin interface for managing posts
 type AdminModel struct {
 	repo       *storage.PostRepository
+	viewRepo   *storage.ViewRepository
 	styles     *theme.Styles
 	keyMap     KeyMap
 	contentDir string
 	author     string
 
-	posts  []*storage.Post
-	cursor int
+	posts     []*storage.Post
+	viewStats map[int64]*storage.ViewStats
+	cursor    int
 
 	// Confirmation state
 	confirmDelete bool
@@ -34,9 +36,10 @@ type AdminModel struct {
 }
 
 // NewAdminModel creates a new admin model
-func NewAdminModel(repo *storage.PostRepository, styles *theme.Styles, contentDir, author string) *AdminModel {
+func NewAdminModel(repo *storage.PostRepository, viewRepo *storage.ViewRepository, styles *theme.Styles, contentDir, author string) *AdminModel {
 	return &AdminModel{
 		repo:       repo,
+		viewRepo:   viewRepo,
 		styles:     styles,
 		keyMap:     DefaultKeyMap(),
 		contentDir: contentDir,
@@ -66,7 +69,14 @@ func (m *AdminModel) loadPosts() tea.Msg {
 	if err != nil {
 		return adminErrorMsg{err: err}
 	}
-	return adminPostsLoadedMsg{posts: posts}
+
+	// Load view stats if available
+	var viewStats map[int64]*storage.ViewStats
+	if m.viewRepo != nil {
+		viewStats, _ = m.viewRepo.GetAllViewStats()
+	}
+
+	return adminPostsLoadedMsg{posts: posts, viewStats: viewStats}
 }
 
 // Update handles input and messages
@@ -74,6 +84,7 @@ func (m *AdminModel) Update(msg tea.Msg) (*AdminModel, tea.Cmd) {
 	switch msg := msg.(type) {
 	case adminPostsLoadedMsg:
 		m.posts = msg.posts
+		m.viewStats = msg.viewStats
 		m.err = nil
 		if m.cursor >= len(m.posts) {
 			m.cursor = len(m.posts) - 1
@@ -264,10 +275,18 @@ func (m *AdminModel) renderPostItem(idx int, post *storage.Post) string {
 		dateStr = post.CreatedAt.Format("2006-01-02")
 	}
 
+	// View stats
+	var viewInfo string
+	if m.viewStats != nil {
+		if stats, ok := m.viewStats[post.ID]; ok {
+			viewInfo = fmt.Sprintf(" | %d views (%d unique)", stats.TotalViews, stats.UniqueViewers)
+		}
+	}
+
 	// Format: ► Title [status]
-	//           2006-01-02 | slug
+	//           2006-01-02 | slug | views
 	line1 := title + " " + status
-	line2 := m.styles.ListDate.Render(fmt.Sprintf("    %s | %s", dateStr, post.Slug))
+	line2 := m.styles.ListDate.Render(fmt.Sprintf("    %s | %s%s", dateStr, post.Slug, viewInfo))
 
 	return lipgloss.JoinVertical(lipgloss.Left, line1, line2)
 }
@@ -316,7 +335,8 @@ func (m *AdminModel) deletePost(post *storage.Post) tea.Cmd {
 // Messages
 
 type adminPostsLoadedMsg struct {
-	posts []*storage.Post
+	posts     []*storage.Post
+	viewStats map[int64]*storage.ViewStats
 }
 
 type adminErrorMsg struct {

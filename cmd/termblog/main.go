@@ -209,6 +209,7 @@ func runServe(sshOnly, httpOnly bool) error {
 
 	repo := storage.NewPostRepository(db)
 	prefRepo := storage.NewPreferenceRepository(db)
+	viewRepo := storage.NewViewRepository(db)
 	loader := blog.NewContentLoader(appInstance.ContentPath())
 	t := theme.GetTheme(cfg.Theme, "")
 
@@ -287,6 +288,7 @@ func runServe(sshOnly, httpOnly bool) error {
 			appInstance.HostKeyPath(),
 			repo,
 			prefRepo,
+			viewRepo,
 			loader,
 			t,
 			tuiConfig,

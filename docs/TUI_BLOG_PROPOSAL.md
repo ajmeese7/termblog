@@ -324,15 +324,15 @@ Alternatively, a web-based admin panel at `/admin` with a simple markdown editor
 - [x] Gzip compression middleware
 - [x] Cache headers
 
-### Phase 5: Admin Interface 🔶 PARTIAL
+### Phase 5: Admin Interface ✅ COMPLETE
 
 #### 5.1 Admin TUI (via SSH)
-- [ ] Authenticate via SSH key
-- [ ] Post management via TUI:
-  - [ ] Create new post (opens $EDITOR or built-in)
-  - [ ] Edit existing post
-  - [ ] Delete post (with confirmation)
-  - [ ] Publish/unpublish toggle
+- [x] Authenticate via SSH key fingerprint whitelist
+- [x] Post management via TUI:
+  - [x] Create new post (opens $EDITOR)
+  - [x] Edit existing post
+  - [x] Delete post (with confirmation)
+  - [x] Publish/unpublish toggle
   - [ ] Schedule post for future
 - [ ] Theme management via TUI
 - [ ] Settings via TUI
@@ -444,7 +444,7 @@ Alternatively, a web-based admin panel at `/admin` with a simple markdown editor
 ### Remaining Work for 1.0
 
 **High Priority:**
-- [ ] Admin TUI interface (create/edit/delete posts via SSH)
+- [x] Admin TUI interface (create/edit/delete posts via SSH)
 - [ ] Import tool for Hugo/Jekyll migration
 - [ ] View counter/analytics
 

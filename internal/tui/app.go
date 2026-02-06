@@ -117,6 +117,7 @@ type Model struct {
 	// Dependencies
 	repo     *storage.PostRepository
 	prefRepo *storage.PreferenceRepository
+	viewRepo *storage.ViewRepository
 	loader   *blog.ContentLoader
 	styles   *theme.Styles
 	keyMap   KeyMap
@@ -126,7 +127,7 @@ type Model struct {
 	themes      []*theme.Theme
 	themeNames  []string
 	themeIndex  int
-	fingerprint string // SSH key fingerprint for theme persistence
+	fingerprint string // SSH key fingerprint for theme persistence and view tracking
 
 	// Admin state
 	isAdmin bool // Whether the current user has admin privileges
@@ -157,11 +158,11 @@ type Model struct {
 
 // New creates a new root model
 func New(repo *storage.PostRepository, loader *blog.ContentLoader, t *theme.Theme, cfg Config) *Model {
-	return NewWithPreferences(repo, loader, t, cfg, "", nil, false)
+	return NewWithPreferences(repo, loader, t, cfg, "", nil, nil, false)
 }
 
-// NewWithPreferences creates a new root model with theme persistence support
-func NewWithPreferences(repo *storage.PostRepository, loader *blog.ContentLoader, t *theme.Theme, cfg Config, fingerprint string, prefRepo *storage.PreferenceRepository, isAdmin bool) *Model {
+// NewWithPreferences creates a new root model with theme persistence and view tracking support
+func NewWithPreferences(repo *storage.PostRepository, loader *blog.ContentLoader, t *theme.Theme, cfg Config, fingerprint string, prefRepo *storage.PreferenceRepository, viewRepo *storage.ViewRepository, isAdmin bool) *Model {
 	styles := theme.NewStyles(t)
 
 	// Build theme list for cycling (includes all built-in themes)
@@ -190,6 +191,7 @@ func NewWithPreferences(repo *storage.PostRepository, loader *blog.ContentLoader
 	m := &Model{
 		repo:        repo,
 		prefRepo:    prefRepo,
+		viewRepo:    viewRepo,
 		loader:      loader,
 		styles:      styles,
 		keyMap:      DefaultKeyMap(),
@@ -206,7 +208,7 @@ func NewWithPreferences(repo *storage.PostRepository, loader *blog.ContentLoader
 	m.reader = NewReaderModel(styles, themeNames[currentIndex])
 	m.search = NewSearchModel(repo, loader, styles)
 	m.themeSelector = NewThemeSelectorModel(themes, themeNames, currentIndex, styles, m.keyMap)
-	m.admin = NewAdminModel(repo, styles, cfg.ContentDir, cfg.Author)
+	m.admin = NewAdminModel(repo, viewRepo, styles, cfg.ContentDir, cfg.Author)
 
 	return m
 }
@@ -288,6 +290,19 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// User selected a post in list view
 		m.currentView = ViewReader
 		m.reader.SetPost(msg.Post, msg.Content)
+		// Record view for analytics
+		if m.viewRepo != nil && msg.Post != nil {
+			viewerHash := m.fingerprint
+			if viewerHash == "" {
+				viewerHash = "anonymous"
+			}
+			// Record view asynchronously to avoid blocking
+			go func(postID int64, hash string) {
+				if err := m.viewRepo.RecordView(postID, hash); err != nil {
+					log.Printf("Failed to record view: %v", err)
+				}
+			}(msg.Post.ID, viewerHash)
+		}
 		return m, tea.ClearScreen
 
 	case BackToListMsg:

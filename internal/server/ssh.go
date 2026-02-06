@@ -29,6 +29,7 @@ type SSHServer struct {
 	server      *ssh.Server
 	repo        *storage.PostRepository
 	prefRepo    *storage.PreferenceRepository
+	viewRepo    *storage.ViewRepository
 	loader      *blog.ContentLoader
 	theme       *theme.Theme
 	config      tui.Config
@@ -50,7 +51,7 @@ type SSHConfig struct {
 }
 
 // NewSSHServer creates a new SSH server
-func NewSSHServer(host string, port int, hostKeyPath string, repo *storage.PostRepository, prefRepo *storage.PreferenceRepository, loader *blog.ContentLoader, t *theme.Theme, tuiCfg tui.Config, sshCfg SSHConfig) (*SSHServer, error) {
+func NewSSHServer(host string, port int, hostKeyPath string, repo *storage.PostRepository, prefRepo *storage.PreferenceRepository, viewRepo *storage.ViewRepository, loader *blog.ContentLoader, t *theme.Theme, tuiCfg tui.Config, sshCfg SSHConfig) (*SSHServer, error) {
 	// Create rate limiter with configurable settings
 	rateLimiter := NewRateLimiter(sshCfg.RateLimitCount, sshCfg.RateLimitWindow)
 
@@ -60,6 +61,7 @@ func NewSSHServer(host string, port int, hostKeyPath string, repo *storage.PostR
 	s := &SSHServer{
 		repo:              repo,
 		prefRepo:          prefRepo,
+		viewRepo:          viewRepo,
 		loader:            loader,
 		theme:             t,
 		config:            tuiCfg,
@@ -123,7 +125,7 @@ func (s *SSHServer) teaHandler(sshSession ssh.Session) (tea.Model, []tea.Program
 		}
 	}
 
-	model := tui.NewWithPreferences(s.repo, s.loader, selectedTheme, s.config, fingerprint, s.prefRepo, isAdmin)
+	model := tui.NewWithPreferences(s.repo, s.loader, selectedTheme, s.config, fingerprint, s.prefRepo, s.viewRepo, isAdmin)
 
 	return model, []tea.ProgramOption{
 		tea.WithAltScreen(),
