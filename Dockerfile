@@ -13,8 +13,8 @@ RUN go mod download
 # Copy source code
 COPY . .
 
-# Build with CGO enabled (required for SQLite)
-RUN CGO_ENABLED=1 go build -ldflags="-s -w" -o /termblog ./cmd/termblog
+# Build with CGO enabled (required for SQLite) and FTS5 for full-text search
+RUN CGO_ENABLED=1 go build -tags fts5 -ldflags="-s -w" -o /termblog ./cmd/termblog
 
 # Final stage
 FROM alpine:latest

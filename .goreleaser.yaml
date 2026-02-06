@@ -18,6 +18,8 @@ builds:
     goarch:
       - amd64
       - arm64
+    tags:
+      - fts5
     ldflags:
       - -s -w
       - -X github.com/ajmeese7/termblog/internal/version.Version={{.Version}}

@@ -22,19 +22,19 @@ GOMOD := $(GOCMD) mod
 
 ## Build the binary
 build:
-	$(GOBUILD) -ldflags "$(LDFLAGS)" -o $(BINARY) ./cmd/termblog
+	$(GOBUILD) -tags fts5 -ldflags "$(LDFLAGS)" -o $(BINARY) ./cmd/termblog
 
 ## Build for production (stripped binary)
 build-prod:
-	$(GOBUILD) -ldflags "$(LDFLAGS) -s -w" -o $(BINARY) ./cmd/termblog
+	$(GOBUILD) -tags fts5 -ldflags "$(LDFLAGS) -s -w" -o $(BINARY) ./cmd/termblog
 
 ## Run unit tests (use `make test-v` for verbose output)
 test:
-	$(GOTEST) ./...
+	$(GOTEST) -tags fts5 ./...
 
 ## Run unit tests with verbose output
 test-v:
-	$(GOTEST) -v ./...
+	$(GOTEST) -tags fts5 -v ./...
 
 ## Run end-to-end browser tests (requires running server: make build && ./termblog serve)
 test-e2e:
