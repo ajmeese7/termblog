@@ -3,23 +3,24 @@
 
 blog:
   # Blog title displayed in the TUI header
-  title: "My Terminal Blog"
+  title: "TermBlog"
 
   # Short description for feeds and meta tags
   description: "A blog you can read in your terminal"
 
   # Default author name for new posts
-  author: "Your Name"
+  author: "Aaron Meese"
 
   # Base URL for RSS feeds and links (no trailing slash)
-  base_url: "https://example.com"
+  base_url: "https://termblog.com"
 
   # Directory containing markdown posts (relative to config file)
   content_dir: "content/posts"
 
   # Message shown after exiting the SSH session (supports multiple lines)
   exit_message: |
-    Thanks for visiting! Check out the web version at https://example.com
+    Thanks for visiting TermBlog!
+    Check out the web version at https://termblog.com
 
   # Path to ASCII art file for TUI header (optional)
   # ascii_header: "header.txt"

@@ -48,29 +48,28 @@ A self-hosted blogging platform that delivers content through an authentic termi
 │                         TermBlog Server                         │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                 │
-│  ┌─────────────┐    ┌─────────────┐    ┌─────────────────────┐ │
-│  │  SSH Server │    │ HTTP Server │    │   Admin Interface   │ │
-│  │   (Wish)    │    │   (Echo)    │    │   (Web or TUI)      │ │
-│  │   :22       │    │   :443      │    │   :8080             │ │
-│  └──────┬──────┘    └──────┬──────┘    └──────────┬──────────┘ │
-│         │                  │                      │            │
-│         ▼                  ▼                      ▼            │
-│  ┌─────────────────────────────────────────────────────────────┤
-│  │                    Core Blog Engine                         │
-│  ├─────────────────────────────────────────────────────────────┤
-│  │  • Post Management (CRUD)                                   │
-│  │  • Theme Engine (terminal color schemes)                    │
-│  │  • RSS Feed Generator                                       │
-│  │  • Search Index                                             │
-│  └─────────────────────────────────────────────────────────────┤
-│                              │                                 │
-│                              ▼                                 │
-│  ┌─────────────────────────────────────────────────────────────┤
-│  │                    Storage Layer                            │
-│  ├─────────────────────────────────────────────────────────────┤
-│  │  • SQLite (metadata, themes, settings)                      │
-│  │  • Filesystem (markdown posts, assets)                      │
-│  └─────────────────────────────────────────────────────────────┘
+│  ┌─────────────┐    ┌─────────────┐    ┌─────────────────────┐  │
+│  │  SSH Server │    │ HTTP Server │    │   Admin Interface   │  │
+│  │   (Wish)    │    │   (Echo)    │    │   (Web or TUI)      │  │
+│  │   :22       │    │   :443      │    │   :8080             │  │
+│  └──────┬──────┘    └──────┬──────┘    └──────────┬──────────┘  │
+│         │                  │                      │             │
+│         ▼                  ▼                      ▼             │
+│  ┌───────────────────────────────────────────────────────────┐  |
+│  │                    Core Blog Engine                       │  |
+│  ├───────────────────────────────────────────────────────────┤  |
+│  │  • Post Management (CRUD)                                 │  |
+│  │  • RSS Feed Generator                                     |  │
+│  │  • Search Index                                           |  │
+│  └───────────────────────────────────────────────────────────┘  |
+│                              │                                  │
+│                              ▼                                  │
+│  ┌───────────────────────────────────────────────────────────┐  |
+│  │                    Storage Layer                          │  |
+│  ├───────────────────────────────────────────────────────────┤  |
+│  │  • SQLite (metadata, themes, settings)                    │  |
+│  │  • Filesystem (markdown posts, assets)                    │  |
+│  └───────────────────────────────────────────────────────────┘  |
 │                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -338,14 +337,7 @@ Alternatively, a web-based admin panel at `/admin` with a simple markdown editor
 - [ ] Settings via TUI
 - [ ] Simple analytics (view counts, popular posts)
 
-#### 5.2 Admin Web UI (Alternative)
-- [ ] Simple login page (password or SSO)
-- [ ] Markdown editor with live preview
-- [ ] File upload for images
-- [ ] Draft management
-- [ ] Settings panel
-
-#### 5.3 CLI Management Tool
+#### 5.2 CLI Management Tool
 - [x] `termblog new "Post Title"` - Create new post file
 - [x] `termblog publish <slug>` - Publish a draft
 - [x] `termblog unpublish <slug>` - Revert to draft

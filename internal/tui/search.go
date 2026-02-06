@@ -148,14 +148,16 @@ func (m *SearchModel) Update(msg tea.Msg) (*SearchModel, tea.Cmd) {
 func (m *SearchModel) View() string {
 	var sections []string
 
-	// Search input
+	// Search input - fix reset codes that clear background
+	inputView := m.input.View()
+	inputView = fixResetCodes(inputView, m.styles.ContentBg)
 	inputStyle := m.styles.SearchInput.Width(m.width - 6)
-	sections = append(sections, inputStyle.Render(m.input.View()))
+	sections = append(sections, inputStyle.Render(inputView))
 
 	// Search hint
 	hint := m.styles.SearchHint.Render("Press Enter to search, Tab to navigate results, Esc to cancel")
 	sections = append(sections, hint)
-	sections = append(sections, "")
+	sections = append(sections, m.styles.ContentBg.Width(m.width).Render(""))
 
 	// Error message
 	if m.err != nil {
@@ -264,6 +266,22 @@ func (m *SearchModel) selectResult() tea.Cmd {
 			Content:      content,
 		}
 	}
+}
+
+// fixResetCodes replaces ANSI reset codes with reset+background to preserve themed background
+func fixResetCodes(content string, bgStyle lipgloss.Style) string {
+	bgSample := bgStyle.Render("")
+	bgCode := ""
+	if idx := strings.Index(bgSample, "\x1b[48;"); idx >= 0 {
+		endIdx := strings.Index(bgSample[idx:], "m")
+		if endIdx > 0 {
+			bgCode = bgSample[idx : idx+endIdx+1]
+		}
+	}
+	if bgCode != "" {
+		content = strings.ReplaceAll(content, "\x1b[0m", "\x1b[0m"+bgCode)
+	}
+	return content
 }
 
 // Messages
