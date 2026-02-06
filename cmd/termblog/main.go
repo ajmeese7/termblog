@@ -714,6 +714,13 @@ func syncPostsWithCount(loader *blog.ContentLoader, repo *storage.PostRepository
 			log.Printf("Warning: failed to sync post %s: %v", post.Slug, err)
 			continue
 		}
+
+		// Index post content for full-text search
+		tagsStr := strings.Join(post.Tags, " ")
+		if err := repo.IndexPost(dbPost.ID, post.Title, tagsStr, post.Content); err != nil {
+			log.Printf("Warning: failed to index post %s: %v", post.Slug, err)
+		}
+
 		count++
 	}
 

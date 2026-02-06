@@ -709,7 +709,13 @@ func (m *Model) syncPost(filePath string) error {
 	}
 
 	// Upsert to database
-	return m.repo.UpsertBySlug(dbPost)
+	if err := m.repo.UpsertBySlug(dbPost); err != nil {
+		return err
+	}
+
+	// Update FTS search index
+	tagsStr := strings.Join(post.Tags, " ")
+	return m.repo.IndexPost(dbPost.ID, post.Title, tagsStr, post.Content)
 }
 
 // Messages

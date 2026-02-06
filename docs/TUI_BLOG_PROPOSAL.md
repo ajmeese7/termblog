@@ -207,7 +207,7 @@ Alternatively, a web-based admin panel at `/admin` with a simple markdown editor
 - [x] Post retrieval by slug
 - [x] Tag-based filtering (via HTTP routes /tags/:tag)
 - [x] Search (LIKE-based on titles and tags)
-- [ ] Full-text search (SQLite FTS5) - *using LIKE instead*
+- [x] Full-text search (SQLite FTS5)
 - [x] RSS/Atom/JSON feed generation
 - [x] Sitemap generation
 
@@ -446,10 +446,10 @@ Alternatively, a web-based admin panel at `/admin` with a simple markdown editor
 **High Priority:**
 - [x] Admin TUI interface (create/edit/delete posts via SSH)
 - [ ] Import tool for Hugo/Jekyll migration
-- [ ] View counter/analytics
+- [x] View counter/analytics
 
 **Medium Priority:**
-- [ ] Full-text search (FTS5) instead of LIKE
+- [x] Full-text search (FTS5) instead of LIKE
 - [ ] Tag filtering in TUI
 - [ ] Table of contents generation
 - [ ] RSS instructions page

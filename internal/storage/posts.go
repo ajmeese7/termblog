@@ -83,8 +83,11 @@ func (r *PostRepository) Update(post *Post) error {
 	return nil
 }
 
-// Delete removes a post from the database
+// Delete removes a post from the database and its FTS index
 func (r *PostRepository) Delete(id int64) error {
+	// Remove from FTS index first
+	_ = r.RemoveFromIndex(id)
+
 	_, err := r.db.Exec("DELETE FROM posts WHERE id = ?", id)
 	if err != nil {
 		return fmt.Errorf("failed to delete post: %w", err)
@@ -187,8 +190,40 @@ func (r *PostRepository) ListAll(limit, offset int) ([]*Post, error) {
 	return r.scanPosts(rows)
 }
 
-// Search finds posts matching a query in title or tags
+// Search finds posts matching a query using FTS5 full-text search
+// Falls back to LIKE-based search if FTS5 table is empty
 func (r *PostRepository) Search(query string, limit int) ([]*Post, error) {
+	// Try FTS5 search first
+	rows, err := r.db.Query(`
+		SELECT p.id, p.slug, p.title, p.filepath, p.status, p.created_at, p.updated_at, p.published_at, p.tags
+		FROM posts_fts fts
+		JOIN posts p ON p.id = fts.content_id
+		WHERE posts_fts MATCH ?
+		  AND p.status = 'published'
+		ORDER BY rank
+		LIMIT ?
+	`, query, limit)
+	if err != nil {
+		// Fall back to LIKE-based search if FTS fails
+		return r.searchLike(query, limit)
+	}
+	defer rows.Close()
+
+	posts, err := r.scanPosts(rows)
+	if err != nil {
+		return r.searchLike(query, limit)
+	}
+
+	// If no FTS results, try LIKE as fallback (index may not be built yet)
+	if len(posts) == 0 {
+		return r.searchLike(query, limit)
+	}
+
+	return posts, nil
+}
+
+// searchLike is the LIKE-based fallback for search
+func (r *PostRepository) searchLike(query string, limit int) ([]*Post, error) {
 	searchTerm := "%" + query + "%"
 	rows, err := r.db.Query(`
 		SELECT id, slug, title, filepath, status, created_at, updated_at, published_at, tags
@@ -204,6 +239,29 @@ func (r *PostRepository) Search(query string, limit int) ([]*Post, error) {
 	defer rows.Close()
 
 	return r.scanPosts(rows)
+}
+
+// IndexPost adds or updates a post in the FTS5 search index
+func (r *PostRepository) IndexPost(postID int64, title, tags, content string) error {
+	// Delete existing entry
+	_, _ = r.db.Exec(`DELETE FROM posts_fts WHERE content_id = ?`, postID)
+
+	// Insert new entry
+	_, err := r.db.Exec(`
+		INSERT INTO posts_fts (title, tags, content, content_id)
+		VALUES (?, ?, ?, ?)
+	`, title, tags, content, postID)
+	if err != nil {
+		return fmt.Errorf("failed to index post: %w", err)
+	}
+
+	return nil
+}
+
+// RemoveFromIndex removes a post from the FTS5 search index
+func (r *PostRepository) RemoveFromIndex(postID int64) error {
+	_, err := r.db.Exec(`DELETE FROM posts_fts WHERE content_id = ?`, postID)
+	return err
 }
 
 // CountPublished returns the total number of published posts
