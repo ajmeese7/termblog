@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -27,6 +26,7 @@ const (
 	ViewHelp
 	ViewThemeSelector
 	ViewAdmin
+	ViewEditor
 )
 
 // KeyMap defines the key bindings
@@ -142,6 +142,7 @@ type Model struct {
 	search        *SearchModel
 	themeSelector *ThemeSelectorModel
 	admin         *AdminModel
+	editor        *EditorModel
 
 	// Window dimensions
 	width  int
@@ -209,6 +210,7 @@ func NewWithPreferences(repo *storage.PostRepository, loader *blog.ContentLoader
 	m.search = NewSearchModel(repo, loader, styles)
 	m.themeSelector = NewThemeSelectorModel(themes, themeNames, currentIndex, styles, m.keyMap)
 	m.admin = NewAdminModel(repo, viewRepo, styles, cfg.ContentDir, cfg.Author)
+	m.editor = NewEditorModel(styles)
 
 	return m
 }
@@ -248,8 +250,16 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.search.SetSize(msg.Width, msg.Height-2)
 		m.themeSelector.SetSize(msg.Width, msg.Height-2)
 		m.admin.SetSize(msg.Width, msg.Height-2)
+		m.editor.SetSize(msg.Width, msg.Height-2)
 
 	case tea.KeyMsg:
+		// Editor view handles all its own keys - don't intercept
+		if m.currentView == ViewEditor {
+			var cmd tea.Cmd
+			m.editor, cmd = m.editor.Update(msg)
+			return m, cmd
+		}
+
 		// Handle quit in any view
 		if key.Matches(msg, m.keyMap.Quit) && m.currentView != ViewSearch {
 			return m, tea.Quit
@@ -343,6 +353,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Preview the theme while browsing
 		m.styles = theme.NewStyles(msg.Theme)
 		m.themeSelector.SetStyles(m.styles)
+		m.admin.SetStyles(m.styles)
+		m.editor.SetStyles(m.styles)
 		return m, emitWebThemeCmd(msg.Name)
 
 	case ThemeSelectedMsg:
@@ -353,6 +365,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.reader.SetTheme(m.styles, msg.Name)
 		m.search.styles = m.styles
 		m.themeSelector.SetStyles(m.styles)
+		m.admin.SetStyles(m.styles)
+		m.editor.SetStyles(m.styles)
 		m.currentView = m.prevView
 
 		// Save theme preference
@@ -379,6 +393,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.reader.SetTheme(m.styles, m.themeNames[m.themeIndex])
 		m.search.styles = m.styles
 		m.themeSelector.SetStyles(m.styles)
+		m.admin.SetStyles(m.styles)
+		m.editor.SetStyles(m.styles)
 		m.currentView = m.prevView
 		return m, tea.Batch(tea.ClearScreen, emitWebThemeCmd(m.themeNames[m.themeIndex]))
 
@@ -396,28 +412,27 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Launch editor for existing post
 		return m, m.launchEditorForPost(msg.Post)
 
-	case editorFinishedMsg:
-		// Editor closed, sync content and return to admin view
-		if msg.err != nil {
-			m.statusMsg = fmt.Sprintf("Editor error: %v", msg.err)
-			m.isError = true
-		} else {
-			// Sync the edited file to pick up changes
-			if err := m.syncPost(msg.filePath); err != nil {
-				m.statusMsg = fmt.Sprintf("Sync error: %v", err)
-				m.isError = true
-			} else {
-				m.statusMsg = "Post saved"
-				m.isError = false
+	case EditorCloseMsg:
+		// Editor closed - sync file and return to admin
+		var statusCmd tea.Cmd
+		if msg.Saved && msg.Err == nil {
+			if syncErr := m.syncPost(msg.FilePath); syncErr != nil {
+				log.Printf("Failed to sync post after edit: %v", syncErr)
 			}
-		}
-		// Reload admin posts and clear status after delay
-		return m, tea.Batch(
-			m.admin.Init(),
-			tea.Tick(1500*time.Millisecond, func(t time.Time) tea.Msg {
+			m.statusMsg = "Saved: " + filepath.Base(msg.FilePath)
+			statusCmd = tea.Tick(1500*time.Millisecond, func(t time.Time) tea.Msg {
 				return clearStatusMsg{}
-			}),
-		)
+			})
+		} else if msg.Err != nil {
+			m.statusMsg = fmt.Sprintf("Save error: %v", msg.Err)
+			m.isError = true
+			statusCmd = tea.Tick(3*time.Second, func(t time.Time) tea.Msg {
+				return clearStatusMsg{}
+			})
+		}
+		m.currentView = ViewAdmin
+		return m, tea.Batch(tea.ClearScreen, m.admin.Init(), statusCmd)
+
 	}
 
 	// Route updates to current view
@@ -446,6 +461,11 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		var cmd tea.Cmd
 		m.admin, cmd = m.admin.Update(msg)
 		cmds = append(cmds, cmd)
+
+	case ViewEditor:
+		var cmd tea.Cmd
+		m.editor, cmd = m.editor.Update(msg)
+		cmds = append(cmds, cmd)
 	}
 
 	return m, tea.Batch(cmds...)
@@ -472,6 +492,8 @@ func (m *Model) View() string {
 		content = m.themeSelector.View()
 	case ViewAdmin:
 		content = m.admin.View()
+	case ViewEditor:
+		content = m.editor.View()
 	}
 
 	// Build the full view with header and footer
@@ -545,6 +567,8 @@ func (m *Model) renderHelpHint() string {
 		hints = []string{hint("↑/↓", "navigate"), hint("enter", "select"), hint("esc", "cancel")}
 	case ViewAdmin:
 		hints = []string{hint("n", "new"), hint("e", "edit"), hint("d", "delete"), hint("p", "publish"), hint("esc", "back")}
+	case ViewEditor:
+		hints = []string{hint("ctrl+s", "save"), hint("esc", "cancel")}
 	default:
 		hints = []string{helpHint, searchHint, themeHint, quitHint}
 		if m.isAdmin {
@@ -600,6 +624,8 @@ func (m *Model) cycleTheme() tea.Cmd {
 	m.list.styles = m.styles
 	m.reader.SetTheme(m.styles, m.themeNames[m.themeIndex])
 	m.search.styles = m.styles
+	m.admin.SetStyles(m.styles)
+	m.editor.SetStyles(m.styles)
 
 	// Save theme preference if we have a fingerprint
 	if m.fingerprint != "" && m.prefRepo != nil {
@@ -621,9 +647,8 @@ func (m *Model) cycleTheme() tea.Cmd {
 // clearStatusMsg is sent to clear the status message after a delay
 type clearStatusMsg struct{}
 
-// launchEditorForNewPost opens $EDITOR for creating a new post
+// launchEditorForNewPost creates a new post file and opens it in the editor
 func (m *Model) launchEditorForNewPost() tea.Cmd {
-	// Create a new post file
 	title := fmt.Sprintf("New Post %s", time.Now().Format("2006-01-02-150405"))
 	filePath, err := m.loader.CreatePost(title, m.config.Author)
 	if err != nil {
@@ -635,10 +660,31 @@ func (m *Model) launchEditorForNewPost() tea.Cmd {
 		}
 	}
 
-	return m.openEditor(filePath)
+	absPath, err := filepath.Abs(filePath)
+	if err != nil {
+		absPath = filePath
+	}
+
+	// Sync the new file to DB immediately
+	if syncErr := m.syncPost(absPath); syncErr != nil {
+		log.Printf("Failed to sync new post: %v", syncErr)
+	}
+
+	// Open in the in-TUI editor
+	if openErr := m.editor.Open(absPath); openErr != nil {
+		return func() tea.Msg {
+			return StatusMsg{
+				Message: fmt.Sprintf("Failed to open editor: %v", openErr),
+				IsError: true,
+			}
+		}
+	}
+	m.editor.SetSize(m.width, m.height-2)
+	m.currentView = ViewEditor
+	return tea.ClearScreen
 }
 
-// launchEditorForPost opens $EDITOR for editing an existing post
+// launchEditorForPost opens an existing post in the in-TUI editor
 func (m *Model) launchEditorForPost(post *storage.Post) tea.Cmd {
 	if post == nil || post.Filepath == "" {
 		return func() tea.Msg {
@@ -649,38 +695,22 @@ func (m *Model) launchEditorForPost(post *storage.Post) tea.Cmd {
 		}
 	}
 
-	return m.openEditor(post.Filepath)
-}
-
-// openEditor launches $EDITOR to edit a file and returns to admin view when done
-func (m *Model) openEditor(filePath string) tea.Cmd {
-	editor := os.Getenv("EDITOR")
-	if editor == "" {
-		editor = os.Getenv("VISUAL")
-	}
-	if editor == "" {
-		editor = "vi" // Default fallback
-	}
-
-	// Resolve to absolute path
-	absPath, err := filepath.Abs(filePath)
+	absPath, err := filepath.Abs(post.Filepath)
 	if err != nil {
-		absPath = filePath
+		absPath = post.Filepath
 	}
 
-	c := exec.Command(editor, absPath)
-	return tea.ExecProcess(c, func(err error) tea.Msg {
-		if err != nil {
-			return editorFinishedMsg{err: err, filePath: absPath}
+	if openErr := m.editor.Open(absPath); openErr != nil {
+		return func() tea.Msg {
+			return StatusMsg{
+				Message: fmt.Sprintf("Failed to open editor: %v", openErr),
+				IsError: true,
+			}
 		}
-		return editorFinishedMsg{filePath: absPath}
-	})
-}
-
-// editorFinishedMsg is sent when the editor process exits
-type editorFinishedMsg struct {
-	err      error
-	filePath string
+	}
+	m.editor.SetSize(m.width, m.height-2)
+	m.currentView = ViewEditor
+	return tea.ClearScreen
 }
 
 // syncPost syncs a single post file to the database

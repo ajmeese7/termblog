@@ -180,10 +180,9 @@ func (m *AdminModel) View() string {
 
 	emptyLine := m.styles.ContentBg.Width(m.width).Render("")
 
-	// Title
-	title := m.styles.Title.Render("Admin: Post Management")
-	sections = append(sections, title)
-	sections = append(sections, emptyLine)
+	// Subtitle (app header already provides the main title)
+	subtitle := m.styles.HelpDesc.Render("Post Management")
+	sections = append(sections, subtitle, emptyLine)
 
 	// Error message
 	if m.err != nil {
@@ -239,6 +238,7 @@ func (m *AdminModel) View() string {
 	lines := strings.Split(content, "\n")
 	bgCode := extractBgCode(m.styles.ContentBg)
 	for i, line := range lines {
+		line = "  " + line
 		if bgCode != "" {
 			line = strings.ReplaceAll(line, "\x1b[0m", "\x1b[0m"+bgCode)
 		}
