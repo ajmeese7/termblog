@@ -566,9 +566,9 @@ func (m *Model) renderHelpHint() string {
 	case ViewThemeSelector:
 		hints = []string{hint("↑/↓", "navigate"), hint("enter", "select"), hint("esc", "cancel")}
 	case ViewAdmin:
-		hints = []string{hint("n", "new"), hint("e", "edit"), hint("d", "delete"), hint("p", "publish"), hint("esc", "back")}
+		hints = []string{hint("n", "new"), hint("e", "edit"), hint("d", "delete"), hint("p", "toggle publish"), hint("esc", "back")}
 	case ViewEditor:
-		hints = []string{hint("ctrl+s", "save"), hint("esc", "cancel")}
+		hints = []string{hint("ctrl+s", "save"), hint("ctrl+l", "line numbers"), hint("esc", "cancel")}
 	default:
 		hints = []string{helpHint, searchHint, themeHint, quitHint}
 		if m.isAdmin {

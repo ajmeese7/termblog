@@ -7,6 +7,7 @@ import (
 	"github.com/ajmeese7/termblog/internal/theme"
 	"github.com/charmbracelet/bubbles/textarea"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
 
 // EditorModel provides an in-TUI text editor for post files
@@ -26,10 +27,28 @@ func NewEditorModel(styles *theme.Styles) *EditorModel {
 	ta.CharLimit = 0 // No character limit
 	ta.MaxHeight = 0 // No line limit
 
+	applyEditorStyles(&ta, styles)
+
 	return &EditorModel{
 		textarea: ta,
 		styles:   styles,
 	}
+}
+
+func applyEditorStyles(ta *textarea.Model, styles *theme.Styles) {
+	cursorLineBg := styles.ListSelected.GetBackground()
+	cursorLineFg := styles.ListSelected.GetForeground()
+
+	ta.FocusedStyle.CursorLine = lipgloss.NewStyle().Background(cursorLineBg).Foreground(cursorLineFg)
+	ta.FocusedStyle.CursorLineNumber = lipgloss.NewStyle().Background(cursorLineBg).Foreground(cursorLineFg)
+	ta.BlurredStyle.CursorLine = lipgloss.NewStyle().Background(cursorLineBg).Foreground(cursorLineFg)
+	ta.BlurredStyle.CursorLineNumber = lipgloss.NewStyle().Background(cursorLineBg).Foreground(cursorLineFg)
+
+	// Also set base/text styles to match the theme background
+	ta.FocusedStyle.Base = lipgloss.NewStyle().Background(styles.ContentBg.GetBackground())
+	ta.FocusedStyle.Text = lipgloss.NewStyle().Foreground(styles.App.GetForeground())
+	ta.BlurredStyle.Base = lipgloss.NewStyle().Background(styles.ContentBg.GetBackground())
+	ta.BlurredStyle.Text = lipgloss.NewStyle().Foreground(styles.App.GetForeground())
 }
 
 // SetSize updates the editor dimensions
@@ -43,6 +62,7 @@ func (m *EditorModel) SetSize(width, height int) {
 // SetStyles updates the styles
 func (m *EditorModel) SetStyles(styles *theme.Styles) {
 	m.styles = styles
+	applyEditorStyles(&m.textarea, styles)
 }
 
 // Open loads a file into the editor
@@ -74,6 +94,10 @@ func (m *EditorModel) Update(msg tea.Msg) (*EditorModel, tea.Cmd) {
 			return m, func() tea.Msg {
 				return EditorCloseMsg{FilePath: m.filePath, Saved: true}
 			}
+		case "ctrl+l":
+			// Toggle line numbers (nano-style)
+			m.textarea.ShowLineNumbers = !m.textarea.ShowLineNumbers
+			return m, nil
 		case "esc", "ctrl+c":
 			return m, func() tea.Msg {
 				return EditorCloseMsg{FilePath: m.filePath}

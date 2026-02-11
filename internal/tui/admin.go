@@ -25,9 +25,8 @@ type AdminModel struct {
 	viewStats map[int64]*storage.ViewStats
 	cursor    int
 
-	// Confirmation state
-	confirmDelete bool
-	deleteTarget  *storage.Post
+	// Confirmation state (-1 means no confirmation active)
+	confirmDeleteIdx int
 
 	width  int
 	height int
@@ -38,12 +37,13 @@ type AdminModel struct {
 // NewAdminModel creates a new admin model
 func NewAdminModel(repo *storage.PostRepository, viewRepo *storage.ViewRepository, styles *theme.Styles, contentDir, author string) *AdminModel {
 	return &AdminModel{
-		repo:       repo,
-		viewRepo:   viewRepo,
-		styles:     styles,
-		keyMap:     DefaultKeyMap(),
-		contentDir: contentDir,
-		author:     author,
+		repo:             repo,
+		viewRepo:         viewRepo,
+		styles:           styles,
+		keyMap:           DefaultKeyMap(),
+		contentDir:       contentDir,
+		author:           author,
+		confirmDeleteIdx: -1,
 	}
 }
 
@@ -99,8 +99,7 @@ func (m *AdminModel) Update(msg tea.Msg) (*AdminModel, tea.Cmd) {
 		return m, nil
 
 	case adminPostDeletedMsg:
-		m.confirmDelete = false
-		m.deleteTarget = nil
+		m.confirmDeleteIdx = -1
 		return m, m.loadPosts
 
 	case adminPostUpdatedMsg:
@@ -108,15 +107,14 @@ func (m *AdminModel) Update(msg tea.Msg) (*AdminModel, tea.Cmd) {
 
 	case tea.KeyMsg:
 		// Handle delete confirmation
-		if m.confirmDelete {
+		if m.confirmDeleteIdx >= 0 {
 			switch msg.String() {
 			case "y", "Y":
-				if m.deleteTarget != nil {
-					return m, m.deletePost(m.deleteTarget)
+				if m.confirmDeleteIdx < len(m.posts) {
+					return m, m.deletePost(m.posts[m.confirmDeleteIdx])
 				}
 			case "n", "N", "esc":
-				m.confirmDelete = false
-				m.deleteTarget = nil
+				m.confirmDeleteIdx = -1
 			}
 			return m, nil
 		}
@@ -148,8 +146,7 @@ func (m *AdminModel) Update(msg tea.Msg) (*AdminModel, tea.Cmd) {
 		case msg.String() == "d":
 			// Delete post (with confirmation)
 			if len(m.posts) > 0 && m.cursor < len(m.posts) {
-				m.confirmDelete = true
-				m.deleteTarget = m.posts[m.cursor]
+				m.confirmDeleteIdx = m.cursor
 			}
 
 		case msg.String() == "p":
@@ -187,13 +184,6 @@ func (m *AdminModel) View() string {
 	// Error message
 	if m.err != nil {
 		sections = append(sections, m.styles.StatusError.Render(fmt.Sprintf("Error: %v", m.err)))
-		sections = append(sections, emptyLine)
-	}
-
-	// Delete confirmation
-	if m.confirmDelete && m.deleteTarget != nil {
-		confirmMsg := fmt.Sprintf("Delete '%s'? (y/n)", m.deleteTarget.Title)
-		sections = append(sections, m.styles.StatusError.Render(confirmMsg))
 		sections = append(sections, emptyLine)
 	}
 
@@ -249,6 +239,14 @@ func (m *AdminModel) View() string {
 
 // renderPostItem renders a single post in the list
 func (m *AdminModel) renderPostItem(idx int, post *storage.Post) string {
+	// Inline delete confirmation
+	if idx == m.confirmDeleteIdx {
+		confirmMsg := fmt.Sprintf("Delete '%s'? (y/n)", post.Title)
+		line1 := m.styles.StatusError.Render("► " + confirmMsg)
+		line2 := m.styles.ListDate.Render("    ")
+		return lipgloss.JoinVertical(lipgloss.Left, line1, line2)
+	}
+
 	isSelected := idx == m.cursor
 
 	// Status indicator
@@ -301,18 +299,6 @@ func (m *AdminModel) renderPostItem(idx int, post *storage.Post) string {
 	line2 := m.styles.ListDate.Render(fmt.Sprintf("    %s | %s%s", dateStr, post.Slug, viewInfo))
 
 	return lipgloss.JoinVertical(lipgloss.Left, line1, line2)
-}
-
-// renderHelp renders the help line
-func (m *AdminModel) renderHelp() string {
-	hints := []string{
-		m.styles.HelpKey.Render("n") + m.styles.HelpDesc.Render(" new"),
-		m.styles.HelpKey.Render("e") + m.styles.HelpDesc.Render(" edit"),
-		m.styles.HelpKey.Render("d") + m.styles.HelpDesc.Render(" delete"),
-		m.styles.HelpKey.Render("p") + m.styles.HelpDesc.Render(" publish"),
-		m.styles.HelpKey.Render("esc") + m.styles.HelpDesc.Render(" back"),
-	}
-	return strings.Join(hints, m.styles.HelpDesc.Render("  │  "))
 }
 
 // togglePublish changes the publish status of a post
