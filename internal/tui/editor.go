@@ -112,7 +112,7 @@ func (m *EditorModel) Update(msg tea.Msg) (*EditorModel, tea.Cmd) {
 
 // View renders the editor
 func (m *EditorModel) View() string {
-	header := m.styles.Title.Render("Editing: " + m.filePath)
+	header := "  " + m.styles.HelpDesc.Render("Editing: "+m.filePath)
 
 	content := header + "\n" + m.textarea.View()
 

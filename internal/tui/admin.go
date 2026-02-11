@@ -179,7 +179,7 @@ func (m *AdminModel) View() string {
 
 	// Subtitle (app header already provides the main title)
 	subtitle := m.styles.HelpDesc.Render("Post Management")
-	sections = append(sections, subtitle, emptyLine)
+	sections = append(sections, subtitle, "")
 
 	// Error message
 	if m.err != nil {
