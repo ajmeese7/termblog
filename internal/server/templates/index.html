@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{.Title}}</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@6.0.0/css/xterm.css">
     <style>
         * {
             margin: 0;
@@ -56,6 +56,7 @@
 
         .xterm-viewport {
             overflow-y: hidden !important;
+            background-color: inherit !important;
         }
 
         /* Loading indicator */
@@ -127,9 +128,10 @@
         <div id="terminal"></div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/xterm-addon-web-links@0.9.0/lib/xterm-addon-web-links.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@6.0.0/lib/xterm.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.11.0/lib/addon-fit.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-web-links@0.12.0/lib/addon-web-links.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-webgl@0.19.0/lib/addon-webgl.min.js"></script>
     <script>
         const wsUrl = `${window.location.protocol === "https:" ? "wss" : "ws"}://${window.location.host}/ws`;
 
@@ -344,8 +346,7 @@
             fontSize: 14,
             lineHeight: 1.2,
             scrollback: 0,  // Disable scrollback to prevent rendering issues
-            theme: initialTheme,
-            allowProposedApi: true
+            theme: initialTheme
         });
 
         // Apply initial page background
@@ -359,6 +360,39 @@
 
         const terminalElement = document.getElementById("terminal");
         term.open(terminalElement);
+
+        // Enable WebGL renderer for GPU-accelerated rendering
+        try {
+            const webglAddon = new WebglAddon.WebglAddon();
+            webglAddon.onContextLoss(() => {
+                webglAddon.dispose();
+            });
+            term.loadAddon(webglAddon);
+        } catch (e) {
+            console.warn("WebGL renderer not available, using canvas fallback:", e);
+        }
+
+        // Write batching: accumulate incoming data and flush via requestAnimationFrame
+        let pendingData = [];
+        let rafScheduled = false;
+
+        function flushPendingWrites() {
+            rafScheduled = false;
+            if (pendingData.length === 0) return;
+            const batch = pendingData;
+            pendingData = [];
+            for (let i = 0; i < batch.length; i++) {
+                term.write(batch[i]);
+            }
+        }
+
+        function queueWrite(data) {
+            pendingData.push(data);
+            if (!rafScheduled) {
+                rafScheduled = true;
+                requestAnimationFrame(flushPendingWrites);
+            }
+        }
 
         // WebSocket connection with exponential backoff
         let ws;
@@ -446,10 +480,10 @@
                     // Remove the OSC sequence from output (don't display it)
                     const cleanedData = dataStr.replace(/\x1b\]7777;theme=[a-z]+\x07/g, "");
                     if (cleanedData) {
-                        term.write(cleanedData);
+                        queueWrite(cleanedData);
                     }
                 } else {
-                    term.write(data);
+                    queueWrite(data);
                 }
             };
 

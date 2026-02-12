@@ -208,7 +208,7 @@ func (h *CommandHandler) handleSearch(w io.Writer, args []string) error {
 func (h *CommandHandler) handleHelp(w io.Writer) error {
 	help := `TermBlog SSH Commands
 
-Usage: ssh <host> <command> [arguments]
+Usage: ssh -p 2222 <host> <command> [arguments]
 
 Commands:
   posts, list, ls         List all published posts
@@ -219,11 +219,11 @@ Commands:
   help                    Show this help message
 
 Examples:
-  ssh blog.example.com posts
-  ssh blog.example.com read my-first-post
-  ssh blog.example.com read my-first-post --rendered | less
-  ssh blog.example.com rss > feed.xml
-  ssh blog.example.com search golang
+  ssh -p 2222 blog.example.com posts
+  ssh -p 2222 blog.example.com read my-first-post
+  ssh -p 2222 blog.example.com read my-first-post --rendered | less
+  ssh -p 2222 blog.example.com rss > feed.xml
+  ssh -p 2222 blog.example.com search golang
 
 Without a command, the interactive TUI is launched.
 `

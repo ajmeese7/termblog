@@ -458,8 +458,8 @@ func cacheControlMiddleware(next http.Handler, cacheControl string) http.Handler
 }
 
 var upgrader = websocket.Upgrader{
-	ReadBufferSize:  1024,
-	WriteBufferSize: 1024,
+	ReadBufferSize:  16384,
+	WriteBufferSize: 16384,
 	CheckOrigin: func(r *http.Request) bool {
 		return true // Allow all origins for now
 	},
@@ -472,7 +472,6 @@ func (s *HTTPServer) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		log.Printf("WebSocket upgrade failed: %v", err)
 		return
 	}
-	defer conn.Close()
 
 	// Spawn the PTY process
 	cmd := exec.Command(s.binaryPath, "pty")
@@ -492,9 +491,9 @@ func (s *HTTPServer) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Printf("Failed to start PTY: %v", err)
 		conn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("Error: %v", err)))
+		conn.Close()
 		return
 	}
-	defer ptmx.Close()
 
 	// Set initial size
 	pty.Setsize(ptmx, &pty.Winsize{
@@ -505,32 +504,71 @@ func (s *HTTPServer) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	var wg sync.WaitGroup
 	done := make(chan struct{})
 
-	// PTY -> WebSocket
+	// PTY -> WebSocket (with output batching at ~60fps)
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		buf := make([]byte, 4096)
-		for {
-			select {
-			case <-done:
-				return
-			default:
+
+		const flushInterval = 16 * time.Millisecond // ~60fps
+		var pending []byte
+		var mu sync.Mutex
+
+		// Flush accumulated data to WebSocket
+		flush := func() bool {
+			mu.Lock()
+			if len(pending) == 0 {
+				mu.Unlock()
+				return true
+			}
+			data := pending
+			pending = nil
+			mu.Unlock()
+
+			if err := conn.WriteMessage(websocket.BinaryMessage, data); err != nil {
+				if !websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway) &&
+					!strings.Contains(err.Error(), "close sent") {
+					log.Printf("WebSocket write error: %v", err)
+				}
+				return false
+			}
+			return true
+		}
+
+		ticker := time.NewTicker(flushInterval)
+		defer ticker.Stop()
+
+		// Read from PTY in a separate goroutine, append to pending buffer
+		ptyDone := make(chan struct{})
+		go func() {
+			defer close(ptyDone)
+			buf := make([]byte, 32768)
+			for {
 				n, err := ptmx.Read(buf)
 				if err != nil {
-					// EIO is expected when the PTY child process exits
 					if err != io.EOF && !errors.Is(err, syscall.EIO) {
 						log.Printf("PTY read error: %v", err)
 					}
 					return
 				}
 				if n > 0 {
-					if err := conn.WriteMessage(websocket.BinaryMessage, buf[:n]); err != nil {
-						if !websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway) &&
-							!strings.Contains(err.Error(), "close sent") {
-							log.Printf("WebSocket write error: %v", err)
-						}
-						return
-					}
+					mu.Lock()
+					pending = append(pending, buf[:n]...)
+					mu.Unlock()
+				}
+			}
+		}()
+
+		for {
+			select {
+			case <-done:
+				flush()
+				return
+			case <-ptyDone:
+				flush()
+				return
+			case <-ticker.C:
+				if !flush() {
+					return
 				}
 			}
 		}
@@ -573,8 +611,11 @@ func (s *HTTPServer) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 
-	// Wait for process to exit
+	// Wait for PTY process to exit, then close PTY and WebSocket to
+	// unblock goroutines cleanly before waiting for them to finish.
 	cmd.Wait()
+	ptmx.Close()
+	conn.Close()
 	wg.Wait()
 }
 

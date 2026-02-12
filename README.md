@@ -77,10 +77,10 @@ open http://localhost:8080
 You can pipe data directly via SSH:
 
 ```bash
-ssh blog.example.com posts              # List all posts
-ssh blog.example.com read my-post       # Get raw markdown
-ssh blog.example.com rss > feed.xml     # Export RSS feed
-ssh blog.example.com search golang      # Search posts
+ssh -p 2222 blog.example.com posts              # List all posts
+ssh -p 2222 blog.example.com read my-post       # Get raw markdown
+ssh -p 2222 blog.example.com rss > feed.xml     # Export RSS feed
+ssh -p 2222 blog.example.com search golang      # Search posts
 ```
 
 ## Configuration
