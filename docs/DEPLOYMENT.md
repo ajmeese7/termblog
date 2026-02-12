@@ -63,11 +63,25 @@ sudo install -m 0755 termblog /opt/termblog/termblog
 
 ## 3. Copy Config and Content
 
-From your local project:
+Choose the copy method that matches your setup.
+
+### Option A: Copy from a different machine (remote -> server)
 
 ```bash
 rsync -avz config.yaml content/posts/ user@your-server:/opt/termblog/
 ```
+
+### Option B: Copy on the same server (local clone -> /opt/termblog)
+
+If you cloned `termblog` directly on the target server, copy locally with `sudo`:
+
+```bash
+sudo rsync -av --chown=termblog:termblog config.yaml content/posts/ /opt/termblog/
+```
+
+Why: `/opt/termblog` is owned by the `termblog` service user, so running `rsync` without `sudo` will fail with `Permission denied`.
+
+Do not use `termblog@host` over SSH for this step. The `termblog` service user is typically non-login and not intended for interactive authentication.
 
 On the server, ensure ownership:
 
