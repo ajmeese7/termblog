@@ -192,9 +192,12 @@ Built with the [Charm](https://charm.sh) ecosystem:
 - [Lipgloss](https://github.com/charmbracelet/lipgloss) - Terminal styling
 - [Wish](https://github.com/charmbracelet/wish) - SSH server
 
-## Contributing
+## Documentation
 
-See [RELEASING.md](./docs/RELEASING.md) for information on the release process and version management.
+- [Deployment Guide](./docs/DEPLOYMENT.md)
+- [Configuration Reference](./docs/CONFIGURATION.md)
+- [Theme Creation Guide](./docs/THEMES.md)
+- [Release Process](./docs/RELEASING.md)
 
 ## License
 

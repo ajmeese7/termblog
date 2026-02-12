@@ -288,6 +288,17 @@ type tocHeading struct {
 
 // headingRegex matches ATX-style markdown headings (## Heading)
 var headingRegex = regexp.MustCompile(`^(#{2,6})\s+(.+)$`)
+var orderedListMarkerRegex = regexp.MustCompile(`^(\d+)\.\s+(.+)$`)
+
+// formatTOCHeadingText avoids nested ordered-list parsing for numbered headings.
+// We replace the marker space with "&nbsp;" so markdown keeps it as plain text.
+func formatTOCHeadingText(text string) string {
+	matches := orderedListMarkerRegex.FindStringSubmatch(text)
+	if matches == nil {
+		return text
+	}
+	return fmt.Sprintf("%s.&nbsp;%s", matches[1], matches[2])
+}
 
 // generateTOC extracts headings from markdown and generates a table of contents
 // Only generates TOC if there are 2 or more headings
@@ -328,12 +339,13 @@ func generateTOC(content string) string {
 		}
 	}
 
-	// Build the TOC as a markdown list
+	// Build the TOC as a markdown list.
+	// Numbered headings are normalized so they don't get parsed as nested ordered lists.
 	var toc strings.Builder
 	toc.WriteString("**Contents**\n\n")
 	for _, h := range headings {
 		indent := strings.Repeat("  ", h.level-minLevel)
-		toc.WriteString(fmt.Sprintf("%s- %s\n", indent, h.text))
+		toc.WriteString(fmt.Sprintf("%s- %s\n", indent, formatTOCHeadingText(h.text)))
 	}
 
 	return toc.String()
