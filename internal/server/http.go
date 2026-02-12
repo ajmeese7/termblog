@@ -144,11 +144,9 @@ func (s *HTTPServer) handleIndex(w http.ResponseWriter, r *http.Request) {
 
 	data := struct {
 		Title        string
-		WSUrl        string
 		DefaultTheme string
 	}{
 		Title:        s.blogTitle,
-		WSUrl:        fmt.Sprintf("ws://%s/ws", r.Host),
 		DefaultTheme: s.themeKey,
 	}
 

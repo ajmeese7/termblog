@@ -87,3 +87,7 @@ Keep `README.md` updated when making changes that affect:
 - Database: `termblog.db` (SQLite)
 - Config: `config.yaml`
 - SSH host key: `.ssh/termblog_host_key`
+
+## Tooling Notes
+
+- Use `python3` for Python commands/scripts; do not assume `python` exists.

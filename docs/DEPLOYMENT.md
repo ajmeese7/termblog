@@ -170,8 +170,9 @@ server {
 }
 
 server {
-    listen 443 ssl http2;
-    listen [::]:443 ssl http2;
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    http2 on;
     server_name termblog.com www.termblog.com;
 
     ssl_certificate /etc/letsencrypt/live/termblog.com/fullchain.pem;
@@ -183,6 +184,11 @@ server {
         proxy_set_header Host $host;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
+
+        # Required for browser terminal WebSocket /ws
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_read_timeout 86400;
     }
 }
 ```
@@ -276,6 +282,7 @@ sudo journalctl -u termblog --since "24 hours ago"
 ## Troubleshooting
 
 - `HTTPS works but no content`: verify Caddy forwards to `127.0.0.1:8080` and TermBlog is running
+- `Web terminal is blank on HTTPS`: open browser console; if you see mixed content or `/ws` connection errors, ensure the page uses `wss://` for WebSocket and Nginx includes `Upgrade`/`Connection` headers for `/ws` traffic.
 - `SSH to :2222 fails`: check firewall/security group rules and `server.ssh_port`
 - `Feed links point to localhost`: fix `blog.base_url` and restart service
 - `Posts missing`: verify files exist in `content/posts`, then run `termblog sync` in `/opt/termblog`
