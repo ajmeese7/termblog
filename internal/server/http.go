@@ -478,7 +478,8 @@ func (s *HTTPServer) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	cmd := exec.Command(s.binaryPath, "pty")
 	env := append(os.Environ(),
 		"TERM=xterm-256color",
-		"TERMBLOG_NO_MOUSE=1", // Disable mouse mode to allow text selection in browser
+		"COLORTERM=truecolor",  // xterm.js supports 24-bit color; without this, Lipgloss downgrades hex colors to 256-color approximations
+		"TERMBLOG_NO_MOUSE=1",  // Disable mouse mode to allow text selection in browser
 	)
 
 	// Pass the web user's saved theme so the TUI starts with the correct theme
