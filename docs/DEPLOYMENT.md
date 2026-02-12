@@ -20,6 +20,7 @@ In production, a typical setup is:
 - A domain you control
 - `sudo` access on the server
 - Basic SSH familiarity
+- Go toolchain (only required for source builds)
 
 ## 1. Provision the Server
 
@@ -42,6 +43,16 @@ sudo install -m 0755 termblog /opt/termblog/termblog
 ```
 
 ### Option B: Build from source
+
+Install Go first (Ubuntu/Debian example):
+
+```bash
+sudo apt update
+sudo apt install -y golang-go make git
+go version
+```
+
+Then build and install TermBlog:
 
 ```bash
 git clone https://github.com/ajmeese7/termblog.git
