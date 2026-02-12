@@ -68,7 +68,7 @@ Choose the copy method that matches your setup.
 ### Option A: Copy from a different machine (remote -> server)
 
 ```bash
-rsync -avz config.yaml content/posts/ user@your-server:/opt/termblog/
+rsync -avz config.yaml content/ user@your-server:/opt/termblog/
 ```
 
 ### Option B: Copy on the same server (local clone -> /opt/termblog)
@@ -76,10 +76,11 @@ rsync -avz config.yaml content/posts/ user@your-server:/opt/termblog/
 If you cloned `termblog` directly on the target server, copy locally with `sudo`:
 
 ```bash
-sudo rsync -av --chown=termblog:termblog config.yaml content/posts/ /opt/termblog/
+sudo rsync -av --chown=termblog:termblog config.yaml content/ /opt/termblog/
 ```
 
 Why: `/opt/termblog` is owned by the `termblog` service user, so running `rsync` without `sudo` will fail with `Permission denied`.
+Using `content/` (not `content/posts/`) preserves the expected path at `/opt/termblog/content/posts`.
 
 Do not use `termblog@host` over SSH for this step. The `termblog` service user is typically non-login and not intended for interactive authentication.
 
@@ -119,7 +120,7 @@ Important:
 The repo includes a service file at `deploy/termblog.service`.
 
 ```bash
-sudo cp deploy/termblog.service /etc/systemd/system/termblog.service
+sudo install -m 0644 deploy/termblog.service /etc/systemd/system/termblog.service
 sudo systemctl daemon-reload
 sudo systemctl enable --now termblog
 sudo systemctl status termblog
@@ -200,7 +201,7 @@ For TLS certificates, issue a cert for `termblog.com` and `www.termblog.com` (fo
 
 At your DNS provider:
 - `A` record: `termblog.com` -> your server IPv4
-- `A` record: `www.termblog.com` -> your server IPv4
+- `CNAME` record: `www.termblog.com` -> `termblog.com`
 - `AAAA` records if using IPv6
 
 Wait for propagation, then verify:
@@ -217,7 +218,7 @@ Allow:
 - `80/tcp` and `443/tcp` (HTTP/HTTPS)
 - `2222/tcp` (TermBlog SSH reader port)
 
-If using `ufw`:
+### Option A: `ufw`
 
 ```bash
 sudo ufw allow 22/tcp
@@ -225,6 +226,22 @@ sudo ufw allow 80/tcp
 sudo ufw allow 443/tcp
 sudo ufw allow 2222/tcp
 sudo ufw enable
+```
+
+### Option B: `iptables` (Debian/Ubuntu example)
+
+```bash
+sudo iptables -A INPUT -p tcp --dport 22 -j ACCEPT
+sudo iptables -A INPUT -p tcp --dport 80 -j ACCEPT
+sudo iptables -A INPUT -p tcp --dport 443 -j ACCEPT
+sudo iptables -A INPUT -p tcp --dport 2222 -j ACCEPT
+```
+
+Persist rules across reboot:
+
+```bash
+sudo apt install -y iptables-persistent
+sudo netfilter-persistent save
 ```
 
 ## 9. Final Verification

@@ -37,7 +37,7 @@ server:
 Use the included unit file at `deploy/termblog.service` and enable it:
 
 ```bash
-sudo cp deploy/termblog.service /etc/systemd/system/termblog.service
+sudo install -m 0644 deploy/termblog.service /etc/systemd/system/termblog.service
 sudo systemctl daemon-reload
 sudo systemctl enable --now termblog
 ```
