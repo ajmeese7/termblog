@@ -1,6 +1,8 @@
 package server
 
 import (
+	"bytes"
+	"compress/flate"
 	"context"
 	"embed"
 	"encoding/json"
@@ -473,6 +475,13 @@ func (s *HTTPServer) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Clear the write deadline set by http.Server.WriteTimeout. After
+	// hijacking, the underlying net.Conn retains the deadline which would
+	// kill the WebSocket connection after WriteTimeout (15s).
+	if nc := conn.NetConn(); nc != nil {
+		nc.SetDeadline(time.Time{})
+	}
+
 	// Spawn the PTY process
 	cmd := exec.Command(s.binaryPath, "pty")
 
@@ -520,6 +529,23 @@ func (s *HTTPServer) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	var wg sync.WaitGroup
 	done := make(chan struct{})
 
+	// Ping keepalive to prevent Cloudflare (100s) and proxies from
+	// closing idle WebSocket connections.
+	go func() {
+		ticker := time.NewTicker(30 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-done:
+				return
+			case <-ticker.C:
+				if err := conn.WriteControl(websocket.PingMessage, nil, time.Now().Add(5*time.Second)); err != nil {
+					return
+				}
+			}
+		}
+	}()
+
 	// PTY -> WebSocket (with output batching at ~60fps)
 	wg.Add(1)
 	go func() {
@@ -528,8 +554,9 @@ func (s *HTTPServer) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 		const flushInterval = 16 * time.Millisecond // ~60fps
 		var pending []byte
 		var mu sync.Mutex
+		var compBuf bytes.Buffer
 
-		// Flush accumulated data to WebSocket
+		// Flush accumulated data to WebSocket (deflate-compressed)
 		flush := func() bool {
 			mu.Lock()
 			if len(pending) == 0 {
@@ -540,7 +567,13 @@ func (s *HTTPServer) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			pending = nil
 			mu.Unlock()
 
-			if err := conn.WriteMessage(websocket.BinaryMessage, data); err != nil {
+			// Compress with raw deflate (fastest level)
+			compBuf.Reset()
+			w, _ := flate.NewWriter(&compBuf, flate.BestSpeed)
+			w.Write(data)
+			w.Close()
+
+			if err := conn.WriteMessage(websocket.BinaryMessage, compBuf.Bytes()); err != nil {
 				if !websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway) &&
 					!strings.Contains(err.Error(), "close sent") {
 					log.Printf("WebSocket write error: %v", err)
