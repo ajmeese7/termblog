@@ -95,10 +95,10 @@ func (m *ListModel) Update(msg tea.Msg) (*ListModel, tea.Cmd) {
 		// Only handle left-click and scroll wheel, ignore everything else
 		switch msg.Button {
 		case tea.MouseButtonWheelUp:
-			m.moveCursor(-3)
+			m.moveCursor(-1)
 			return m, nil
 		case tea.MouseButtonWheelDown:
-			m.moveCursor(3)
+			m.moveCursor(1)
 			return m, nil
 		case tea.MouseButtonLeft:
 			// Only handle left-click release (not press or motion)

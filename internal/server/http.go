@@ -475,7 +475,23 @@ func (s *HTTPServer) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 
 	// Spawn the PTY process
 	cmd := exec.Command(s.binaryPath, "pty")
-	env := append(os.Environ(),
+
+	// Build env for the PTY subprocess. We must filter out any existing TERM,
+	// COLORTERM, and TERMBLOG_ vars before adding our overrides, because on
+	// Linux duplicate env keys use the FIRST value — so appending would be
+	// silently ignored if the server process already has these set (e.g.
+	// TERM=linux from systemd).
+	baseEnv := os.Environ()
+	env := make([]string, 0, len(baseEnv)+4)
+	for _, e := range baseEnv {
+		if strings.HasPrefix(e, "TERM=") ||
+			strings.HasPrefix(e, "COLORTERM=") ||
+			strings.HasPrefix(e, "TERMBLOG_") {
+			continue
+		}
+		env = append(env, e)
+	}
+	env = append(env,
 		"TERM=xterm-256color",
 		"COLORTERM=truecolor",  // xterm.js supports 24-bit color; without this, Lipgloss downgrades hex colors to 256-color approximations
 		"TERMBLOG_NO_MOUSE=1",  // Disable mouse mode to allow text selection in browser
