@@ -206,8 +206,9 @@ For TLS certificates, issue a cert for `termblog.com` and `www.termblog.com` (fo
 ## 7. DNS Records
 
 At your DNS provider:
-- `A` record: `termblog.com` -> your server IPv4
 - `CNAME` record: `www.termblog.com` -> `termblog.com`
+- `A` record: `termblog.com` -> your server IPv4
+- `A` record: `ssh.termblog.com` -> your server IPv4
 - `AAAA` records if using IPv6
 
 Wait for propagation, then verify:
@@ -215,7 +216,16 @@ Wait for propagation, then verify:
 ```bash
 dig +short termblog.com
 dig +short www.termblog.com
+dig +short ssh.termblog.com
 ```
+
+### Cloudflare Note
+
+If you use Cloudflare:
+- Keep `termblog.com` and `www.termblog.com` proxied (orange cloud) for HTTPS.
+- Set `ssh.termblog.com` to DNS-only (gray cloud) so SSH on `2222` reaches your server directly.
+
+Why: Cloudflare's standard HTTP proxy does not forward arbitrary SSH traffic on `2222`, so `ssh -p 2222 termblog.com` will time out when proxied.
 
 ## 8. Firewall and Ports
 
@@ -257,8 +267,8 @@ Run checks from a different machine:
 ```bash
 curl -I https://termblog.com
 curl -I https://termblog.com/feed.xml
-ssh termblog.com -p 2222
-ssh termblog.com posts
+ssh -p 2222 ssh.termblog.com
+ssh -p 2222 ssh.termblog.com posts
 ```
 
 Expected results:
@@ -284,5 +294,6 @@ sudo journalctl -u termblog --since "24 hours ago"
 - `HTTPS works but no content`: verify Caddy forwards to `127.0.0.1:8080` and TermBlog is running
 - `Web terminal is blank on HTTPS`: open browser console; if you see mixed content or `/ws` connection errors, ensure the page uses `wss://` for WebSocket and Nginx includes `Upgrade`/`Connection` headers for `/ws` traffic.
 - `SSH to :2222 fails`: check firewall/security group rules and `server.ssh_port`
+- `SSH to :2222 times out only when DNS is proxied`: if using Cloudflare orange cloud, move SSH to a DNS-only hostname like `ssh.termblog.com`
 - `Feed links point to localhost`: fix `blog.base_url` and restart service
 - `Posts missing`: verify files exist in `content/posts`, then run `termblog sync` in `/opt/termblog`

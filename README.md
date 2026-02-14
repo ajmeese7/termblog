@@ -83,6 +83,18 @@ ssh -p 2222 blog.example.com rss > feed.xml     # Export RSS feed
 ssh -p 2222 blog.example.com search golang      # Search posts
 ```
 
+### Production SSH with Cloudflare
+
+If your domain uses Cloudflare orange-cloud proxying, raw SSH on `2222` will time out.
+
+For standard OpenSSH access, use a dedicated SSH hostname that is DNS-only (gray cloud), then tell visitors to connect with:
+
+```bash
+ssh -p 2222 ssh.example.com
+```
+
+Keep `termblog.com` proxied for HTTPS, and use `ssh.example.com` for SSH.
+
 ## Configuration
 
 Create a `config.yaml` in the project root:
