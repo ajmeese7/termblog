@@ -85,9 +85,10 @@ func NewSSHServer(host string, port int, hostKeyPath string, repo *storage.PostR
 			return true
 		}),
 		wish.WithMiddleware(
+			// Wish composes first→last, so the last entry is outermost (runs first).
 			exitMessageMiddleware(sshCfg.ExitMessage),
-			s.commandMiddleware(), // Handle non-interactive commands
 			bubbletea.MiddlewareWithColorProfile(s.teaHandler, termenv.TrueColor),
+			s.commandMiddleware(), // Must wrap bubbletea so commands run before PTY check
 			RateLimitMiddleware(rateLimiter),
 			logging.Middleware(),
 		),
