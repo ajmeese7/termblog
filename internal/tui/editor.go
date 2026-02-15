@@ -7,7 +7,6 @@ import (
 	"github.com/ajmeese7/termblog/internal/theme"
 	"github.com/charmbracelet/bubbles/textarea"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 )
 
 // EditorModel provides an in-TUI text editor for post files
@@ -36,19 +35,20 @@ func NewEditorModel(styles *theme.Styles) *EditorModel {
 }
 
 func applyEditorStyles(ta *textarea.Model, styles *theme.Styles) {
+	r := styles.Renderer
 	cursorLineBg := styles.ListSelected.GetBackground()
 	cursorLineFg := styles.ListSelected.GetForeground()
 
-	ta.FocusedStyle.CursorLine = lipgloss.NewStyle().Background(cursorLineBg).Foreground(cursorLineFg)
-	ta.FocusedStyle.CursorLineNumber = lipgloss.NewStyle().Background(cursorLineBg).Foreground(cursorLineFg)
-	ta.BlurredStyle.CursorLine = lipgloss.NewStyle().Background(cursorLineBg).Foreground(cursorLineFg)
-	ta.BlurredStyle.CursorLineNumber = lipgloss.NewStyle().Background(cursorLineBg).Foreground(cursorLineFg)
+	ta.FocusedStyle.CursorLine = r.NewStyle().Background(cursorLineBg).Foreground(cursorLineFg)
+	ta.FocusedStyle.CursorLineNumber = r.NewStyle().Background(cursorLineBg).Foreground(cursorLineFg)
+	ta.BlurredStyle.CursorLine = r.NewStyle().Background(cursorLineBg).Foreground(cursorLineFg)
+	ta.BlurredStyle.CursorLineNumber = r.NewStyle().Background(cursorLineBg).Foreground(cursorLineFg)
 
 	// Also set base/text styles to match the theme background
-	ta.FocusedStyle.Base = lipgloss.NewStyle().Background(styles.ContentBg.GetBackground())
-	ta.FocusedStyle.Text = lipgloss.NewStyle().Foreground(styles.App.GetForeground())
-	ta.BlurredStyle.Base = lipgloss.NewStyle().Background(styles.ContentBg.GetBackground())
-	ta.BlurredStyle.Text = lipgloss.NewStyle().Foreground(styles.App.GetForeground())
+	ta.FocusedStyle.Base = r.NewStyle().Background(styles.ContentBg.GetBackground())
+	ta.FocusedStyle.Text = r.NewStyle().Foreground(styles.App.GetForeground())
+	ta.BlurredStyle.Base = r.NewStyle().Background(styles.ContentBg.GetBackground())
+	ta.BlurredStyle.Text = r.NewStyle().Foreground(styles.App.GetForeground())
 }
 
 // SetSize updates the editor dimensions

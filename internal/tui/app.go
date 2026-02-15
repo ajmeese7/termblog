@@ -122,6 +122,7 @@ type Model struct {
 	styles   *theme.Styles
 	keyMap   KeyMap
 	config   Config
+	renderer *lipgloss.Renderer // Session-specific renderer (nil = default)
 
 	// Theme state
 	themes      []*theme.Theme
@@ -159,12 +160,13 @@ type Model struct {
 
 // New creates a new root model
 func New(repo *storage.PostRepository, loader *blog.ContentLoader, t *theme.Theme, cfg Config) *Model {
-	return NewWithPreferences(repo, loader, t, cfg, "", nil, nil, false)
+	return NewWithPreferences(repo, loader, t, cfg, "", nil, nil, false, nil)
 }
 
-// NewWithPreferences creates a new root model with theme persistence and view tracking support
-func NewWithPreferences(repo *storage.PostRepository, loader *blog.ContentLoader, t *theme.Theme, cfg Config, fingerprint string, prefRepo *storage.PreferenceRepository, viewRepo *storage.ViewRepository, isAdmin bool) *Model {
-	styles := theme.NewStyles(t)
+// NewWithPreferences creates a new root model with theme persistence and view tracking support.
+// Pass a non-nil renderer for SSH sessions; nil uses the default renderer.
+func NewWithPreferences(repo *storage.PostRepository, loader *blog.ContentLoader, t *theme.Theme, cfg Config, fingerprint string, prefRepo *storage.PreferenceRepository, viewRepo *storage.ViewRepository, isAdmin bool, r *lipgloss.Renderer) *Model {
+	styles := theme.NewStyles(t, r)
 
 	// Build theme list for cycling (includes all built-in themes)
 	themeMap := theme.DefaultThemes()
@@ -183,7 +185,7 @@ func NewWithPreferences(repo *storage.PostRepository, loader *blog.ContentLoader
 		for i, name := range themeNames {
 			if name == webTheme {
 				currentIndex = i
-				styles = theme.NewStyles(themes[i])
+				styles = theme.NewStyles(themes[i], r)
 				break
 			}
 		}
@@ -197,6 +199,7 @@ func NewWithPreferences(repo *storage.PostRepository, loader *blog.ContentLoader
 		styles:      styles,
 		keyMap:      DefaultKeyMap(),
 		config:      cfg,
+		renderer:    r,
 		themes:      themes,
 		themeNames:  themeNames,
 		themeIndex:  currentIndex,
@@ -351,7 +354,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case ThemePreviewMsg:
 		// Preview the theme while browsing
-		m.styles = theme.NewStyles(msg.Theme)
+		m.styles = theme.NewStyles(msg.Theme, m.renderer)
 		m.themeSelector.SetStyles(m.styles)
 		m.admin.SetStyles(m.styles)
 		m.editor.SetStyles(m.styles)
@@ -359,7 +362,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case ThemeSelectedMsg:
 		// Apply the selected theme
-		m.styles = theme.NewStyles(msg.Theme)
+		m.styles = theme.NewStyles(msg.Theme, m.renderer)
 		m.themeIndex = m.themeSelector.SelectedIndex()
 		m.list.styles = m.styles
 		m.reader.SetTheme(m.styles, msg.Name)
@@ -388,7 +391,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case ThemeCancelledMsg:
 		// Restore original theme
 		originalTheme := m.themes[m.themeIndex]
-		m.styles = theme.NewStyles(originalTheme)
+		m.styles = theme.NewStyles(originalTheme, m.renderer)
 		m.list.styles = m.styles
 		m.reader.SetTheme(m.styles, m.themeNames[m.themeIndex])
 		m.search.styles = m.styles
@@ -618,7 +621,7 @@ func (m *Model) renderHelpLine(key, desc string) string {
 func (m *Model) cycleTheme() tea.Cmd {
 	m.themeIndex = (m.themeIndex + 1) % len(m.themes)
 	newTheme := m.themes[m.themeIndex]
-	m.styles = theme.NewStyles(newTheme)
+	m.styles = theme.NewStyles(newTheme, m.renderer)
 
 	// Update styles in sub-models
 	m.list.styles = m.styles

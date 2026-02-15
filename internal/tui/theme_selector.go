@@ -96,10 +96,12 @@ func (m *ThemeSelectorModel) View() string {
 		contentWidth = 20
 	}
 
-	// Background style for padding lines
-	bgStyle := lipgloss.NewStyle().Background(bg)
+	r := m.styles.Renderer
 
-	titleStyle := lipgloss.NewStyle().
+	// Background style for padding lines
+	bgStyle := r.NewStyle().Background(bg)
+
+	titleStyle := r.NewStyle().
 		Bold(true).
 		Foreground(lipgloss.Color(currentTheme.Colors.Accent)).
 		Background(bg)
@@ -119,7 +121,7 @@ func (m *ThemeSelectorModel) View() string {
 		}
 
 		// Create theme preview colors
-		itemStyle := lipgloss.NewStyle().Background(bg)
+		itemStyle := r.NewStyle().Background(bg)
 		if i == m.cursor {
 			itemStyle = itemStyle.
 				Bold(true).
@@ -129,7 +131,7 @@ func (m *ThemeSelectorModel) View() string {
 				Foreground(lipgloss.Color(currentTheme.Colors.Muted))
 		}
 
-		descStyle := lipgloss.NewStyle().
+		descStyle := r.NewStyle().
 			Foreground(lipgloss.Color(currentTheme.Colors.Muted)).
 			Background(bg).
 			Italic(true)
@@ -145,7 +147,7 @@ func (m *ThemeSelectorModel) View() string {
 
 	lines = append(lines, bgStyle.Width(contentWidth).Render(""))
 
-	helpStyle := lipgloss.NewStyle().
+	helpStyle := r.NewStyle().
 		Foreground(lipgloss.Color(currentTheme.Colors.Muted)).
 		Background(bg)
 
@@ -169,7 +171,7 @@ func (m *ThemeSelectorModel) renderColorPreview(t *theme.Theme) string {
 
 	var blocks []string
 	for _, c := range colors {
-		style := lipgloss.NewStyle().
+		style := m.styles.Renderer.NewStyle().
 			Background(lipgloss.Color(c.color)).
 			Foreground(lipgloss.Color(t.Colors.Background)).
 			Padding(0, 1)

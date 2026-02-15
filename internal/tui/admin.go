@@ -268,13 +268,13 @@ func (m *AdminModel) renderPostItem(idx int, post *storage.Post) string {
 	// Use inline styling to avoid padding that forces line wraps
 	var line1 string
 	if isSelected {
-		titleStyle := lipgloss.NewStyle().
+		titleStyle := m.styles.Renderer.NewStyle().
 			Foreground(m.styles.ListSelected.GetForeground()).
 			Background(m.styles.ListSelected.GetBackground()).
 			Bold(true)
 		line1 = titleStyle.Render("► "+post.Title) + " " + status
 	} else {
-		titleStyle := lipgloss.NewStyle().
+		titleStyle := m.styles.Renderer.NewStyle().
 			Foreground(m.styles.ListItem.GetForeground()).
 			Background(m.styles.ListItem.GetBackground())
 		line1 = titleStyle.Render("  "+post.Title) + " " + status

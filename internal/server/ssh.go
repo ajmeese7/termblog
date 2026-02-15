@@ -18,9 +18,9 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/ssh"
 	"github.com/charmbracelet/wish"
-	"github.com/charmbracelet/wish/activeterm"
 	"github.com/charmbracelet/wish/bubbletea"
 	"github.com/charmbracelet/wish/logging"
+	"github.com/muesli/termenv"
 	gossh "golang.org/x/crypto/ssh"
 )
 
@@ -87,8 +87,7 @@ func NewSSHServer(host string, port int, hostKeyPath string, repo *storage.PostR
 		wish.WithMiddleware(
 			exitMessageMiddleware(sshCfg.ExitMessage),
 			s.commandMiddleware(), // Handle non-interactive commands
-			bubbletea.Middleware(s.teaHandler),
-			activeterm.Middleware(),
+			bubbletea.MiddlewareWithColorProfile(s.teaHandler, termenv.TrueColor),
 			RateLimitMiddleware(rateLimiter),
 			logging.Middleware(),
 		),
@@ -125,7 +124,8 @@ func (s *SSHServer) teaHandler(sshSession ssh.Session) (tea.Model, []tea.Program
 		}
 	}
 
-	model := tui.NewWithPreferences(s.repo, s.loader, selectedTheme, s.config, fingerprint, s.prefRepo, s.viewRepo, isAdmin)
+	renderer := bubbletea.MakeRenderer(sshSession)
+	model := tui.NewWithPreferences(s.repo, s.loader, selectedTheme, s.config, fingerprint, s.prefRepo, s.viewRepo, isAdmin, renderer)
 
 	return model, []tea.ProgramOption{
 		tea.WithAltScreen(),
@@ -199,7 +199,8 @@ func exitMessageMiddleware(message string) wish.Middleware {
 		return func(sess ssh.Session) {
 			next(sess)
 			// Print exit message after TUI closes (if configured)
-			if msg := strings.TrimSpace(message); msg != "" {
+			// Skip for non-interactive command sessions
+			if msg := strings.TrimSpace(message); msg != "" && len(sess.Command()) == 0 {
 				wish.Println(sess, "")
 				wish.Println(sess, msg)
 				wish.Println(sess, "")
@@ -228,8 +229,13 @@ func (s *SSHServer) commandMiddleware() wish.Middleware {
 				return
 			}
 
-			// If command wasn't handled, proceed to TUI
+			// If command wasn't handled, check if we can fall through to TUI
 			if !handled {
+				// Non-PTY sessions can't run the TUI — show an error
+				if _, _, ok := sess.Pty(); !ok {
+					wish.Fatalln(sess, fmt.Sprintf("Unknown command: %s\nRun 'help' for available commands.", cmd[0]))
+					return
+				}
 				next(sess)
 				return
 			}

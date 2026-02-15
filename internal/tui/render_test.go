@@ -18,7 +18,7 @@ func init() {
 
 func TestPadContentLines(t *testing.T) {
 	th := theme.DraculaTheme()
-	styles := theme.NewStyles(th)
+	styles := theme.NewStyles(th, nil)
 
 	reader := &ReaderModel{
 		styles: styles,
@@ -47,7 +47,7 @@ func TestPadContentLines(t *testing.T) {
 
 func TestListRenderPostSpacing(t *testing.T) {
 	th := theme.DraculaTheme()
-	styles := theme.NewStyles(th)
+	styles := theme.NewStyles(th, nil)
 
 	// Count newlines in a rendered post
 	// Should be exactly 2 newlines (title\ndateline\nemptyline)
@@ -66,7 +66,7 @@ func TestListRenderPostSpacing(t *testing.T) {
 
 func TestListStylePadding(t *testing.T) {
 	th := theme.DraculaTheme()
-	styles := theme.NewStyles(th)
+	styles := theme.NewStyles(th, nil)
 
 	// The List style has Padding(1, 2) which adds vertical padding
 	// ContentBg has no padding
@@ -85,7 +85,7 @@ func TestListStylePadding(t *testing.T) {
 func TestMouseRightClickIgnored(t *testing.T) {
 	// Test that right-click events don't trigger post selection
 	th := theme.DraculaTheme()
-	styles := theme.NewStyles(th)
+	styles := theme.NewStyles(th, nil)
 
 	list := NewListModel(nil, styles, "Test")
 	list.width = 80
@@ -118,7 +118,7 @@ func TestMouseRightClickIgnored(t *testing.T) {
 func TestMouseLeftClickSelectsPost(t *testing.T) {
 	// Test that left-click on selected post triggers selection
 	th := theme.DraculaTheme()
-	styles := theme.NewStyles(th)
+	styles := theme.NewStyles(th, nil)
 
 	list := NewListModel(nil, styles, "Test")
 	list.width = 80
@@ -147,7 +147,7 @@ func TestMouseLeftClickSelectsPost(t *testing.T) {
 func TestMouseButtonNoneIgnored(t *testing.T) {
 	// Test that MouseButtonNone (motion or other events) are ignored
 	th := theme.DraculaTheme()
-	styles := theme.NewStyles(th)
+	styles := theme.NewStyles(th, nil)
 
 	list := NewListModel(nil, styles, "Test")
 	list.width = 80
@@ -174,7 +174,7 @@ func TestMouseButtonNoneIgnored(t *testing.T) {
 func TestReaderContentHasBackground(t *testing.T) {
 	// Test that reader content has background color applied
 	th := theme.DraculaTheme()
-	styles := theme.NewStyles(th)
+	styles := theme.NewStyles(th, nil)
 
 	reader := NewReaderModel(styles, "dracula")
 	reader.width = 80

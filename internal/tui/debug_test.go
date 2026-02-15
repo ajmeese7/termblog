@@ -16,7 +16,7 @@ func TestGlamourResetCodesGetBackgroundRestored(t *testing.T) {
 	lipgloss.SetColorProfile(termenv.TrueColor)
 
 	th := theme.DraculaTheme()
-	themeStyles := theme.NewStyles(th)
+	themeStyles := theme.NewStyles(th, nil)
 
 	content := "# Hello World\n\nThis is a test paragraph.\n\n- Item 1\n- Item 2"
 	contentWidth := 60
@@ -67,7 +67,7 @@ func TestTrueColorRendering(t *testing.T) {
 	lipgloss.SetColorProfile(termenv.TrueColor)
 
 	th := theme.DraculaTheme()
-	themeStyles := theme.NewStyles(th)
+	themeStyles := theme.NewStyles(th, nil)
 
 	result := themeStyles.ContentBg.Width(40).Render("test")
 

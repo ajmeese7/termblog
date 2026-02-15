@@ -49,10 +49,18 @@ type Styles struct {
 
 	// Content background - used for padding content lines to full width
 	ContentBg lipgloss.Style
+
+	// Renderer used to create these styles (for inline style creation)
+	Renderer *lipgloss.Renderer
 }
 
-// NewStyles creates styles from a theme
-func NewStyles(theme *Theme) *Styles {
+// NewStyles creates styles from a theme.
+// If r is nil, the default lipgloss renderer is used.
+func NewStyles(theme *Theme, r *lipgloss.Renderer) *Styles {
+	if r == nil {
+		r = lipgloss.DefaultRenderer()
+	}
+
 	c := theme.Colors
 
 	primary := lipgloss.Color(c.Primary)
@@ -67,11 +75,11 @@ func NewStyles(theme *Theme) *Styles {
 
 	return &Styles{
 		// Base styles
-		App: lipgloss.NewStyle().
+		App: r.NewStyle().
 			Foreground(text).
 			Background(background),
 
-		Header: lipgloss.NewStyle().
+		Header: r.NewStyle().
 			Foreground(primary).
 			Background(background).
 			Bold(true).
@@ -80,7 +88,7 @@ func NewStyles(theme *Theme) *Styles {
 			BorderBottom(true).
 			BorderForeground(border),
 
-		Footer: lipgloss.NewStyle().
+		Footer: r.NewStyle().
 			Foreground(muted).
 			Background(background).
 			Padding(0, 1).
@@ -89,90 +97,90 @@ func NewStyles(theme *Theme) *Styles {
 			BorderForeground(border),
 
 		// List view
-		List: lipgloss.NewStyle().
+		List: r.NewStyle().
 			Background(background).
 			Padding(1, 2),
 
-		ListItem: lipgloss.NewStyle().
+		ListItem: r.NewStyle().
 			Foreground(text).
 			Background(background).
 			Padding(0, 1),
 
-		ListSelected: lipgloss.NewStyle().
+		ListSelected: r.NewStyle().
 			Foreground(primary).
 			Bold(true).
 			Background(lipgloss.Color(c.Border)).
 			Padding(0, 1),
 
-		ListTitle: lipgloss.NewStyle().
+		ListTitle: r.NewStyle().
 			Foreground(primary).
 			Background(background).
 			Bold(true),
 
-		ListDate: lipgloss.NewStyle().
+		ListDate: r.NewStyle().
 			Foreground(muted).
 			Background(background).
 			Italic(true),
 
-		ListTags: lipgloss.NewStyle().
+		ListTags: r.NewStyle().
 			Foreground(secondary).
 			Background(background),
 
 		// Reader view
-		Reader: lipgloss.NewStyle().
+		Reader: r.NewStyle().
 			Background(background).
 			Padding(1, 2),
 
-		ReaderTitle: lipgloss.NewStyle().
+		ReaderTitle: r.NewStyle().
 			Foreground(primary).
 			Background(background).
 			Bold(true).
 			Padding(1, 0).
 			MarginBottom(1),
 
-		ReaderMeta: lipgloss.NewStyle().
+		ReaderMeta: r.NewStyle().
 			Foreground(muted).
 			Background(background).
 			Italic(true).
 			MarginBottom(1),
 
-		ReaderScroll: lipgloss.NewStyle().
+		ReaderScroll: r.NewStyle().
 			Foreground(muted).
 			Background(background),
 
 		// Search view
-		Search: lipgloss.NewStyle().
+		Search: r.NewStyle().
 			Background(background).
 			Padding(1, 2),
 
-		SearchInput: lipgloss.NewStyle().
+		SearchInput: r.NewStyle().
 			Foreground(primary).
 			Background(background).
 			BorderStyle(lipgloss.NormalBorder()).
 			BorderForeground(border).
 			Padding(0, 1),
 
-		SearchHint: lipgloss.NewStyle().
+		SearchHint: r.NewStyle().
 			Foreground(muted).
 			Background(background).
 			Italic(true),
 
 		// Help
-		Help: lipgloss.NewStyle().
+		Help: r.NewStyle().
 			Foreground(text).
 			Background(background).
 			Padding(1, 2),
 
-		HelpKey: lipgloss.NewStyle().
+		HelpKey: r.NewStyle().
 			Foreground(accent).
 			Background(background).
 			Bold(true),
 
-		HelpDesc: lipgloss.NewStyle().
+		HelpDesc: r.NewStyle().
 			Foreground(muted).
 			Background(background),
 
-		HelpSection: lipgloss.NewStyle().
+		HelpSection: r.NewStyle().
 			Foreground(primary).
 			Background(background).
 			Bold(true).
@@ -180,42 +188,44 @@ func NewStyles(theme *Theme) *Styles {
 			MarginBottom(1),
 
 		// Status
-		StatusBar: lipgloss.NewStyle().
+		StatusBar: r.NewStyle().
 			Foreground(text).
 			Background(background).
 			Padding(0, 1),
 
-		StatusMessage: lipgloss.NewStyle().
+		StatusMessage: r.NewStyle().
 			Foreground(text).
 			Background(background),
 
-		StatusError: lipgloss.NewStyle().
+		StatusError: r.NewStyle().
 			Foreground(errorColor).
 			Background(background).
 			Bold(true),
 
-		StatusSuccess: lipgloss.NewStyle().
+		StatusSuccess: r.NewStyle().
 			Foreground(success).
 			Background(background).
 			Bold(true),
 
 		// Misc
-		Border: lipgloss.NewStyle().
+		Border: r.NewStyle().
 			Background(background).
 			BorderStyle(lipgloss.RoundedBorder()).
 			BorderForeground(border),
 
-		Title: lipgloss.NewStyle().
+		Title: r.NewStyle().
 			Foreground(primary).
 			Background(background).
 			Bold(true),
 
-		Spinner: lipgloss.NewStyle().
+		Spinner: r.NewStyle().
 			Foreground(accent).
 			Background(background),
 
-		ContentBg: lipgloss.NewStyle().
+		ContentBg: r.NewStyle().
 			Background(background),
+
+		Renderer: r,
 	}
 }
 
