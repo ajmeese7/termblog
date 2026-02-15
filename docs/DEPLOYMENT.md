@@ -57,7 +57,7 @@ Then build and install TermBlog:
 ```bash
 git clone https://github.com/ajmeese7/termblog.git
 cd termblog
-make build
+make build-prod
 sudo install -m 0755 termblog /opt/termblog/termblog
 ```
 
