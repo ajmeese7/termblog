@@ -38,6 +38,7 @@ func DefaultThemes() map[string]*Theme {
 		"amber":      AmberTheme(),
 		"matrix":     MatrixTheme(),
 		"paper":      PaperTheme(),
+		"terminal":   TerminalTheme(),
 	}
 }
 
@@ -197,6 +198,26 @@ func PaperTheme() *Theme {
 			Success:    "#1a1a1a", // Near black
 			Warning:    "#654321", // Dark brown
 			Border:     "#c0c0a8", // Light olive
+		},
+	}
+}
+
+// TerminalTheme returns a transparent theme that uses the terminal's native colors
+func TerminalTheme() *Theme {
+	return &Theme{
+		Name:        "Terminal",
+		Description: "Uses your terminal's native colors and background",
+		Colors: ThemeColors{
+			Primary:    "12", // Bright blue
+			Secondary:  "14", // Bright cyan
+			Background: "",   // Transparent — terminal default
+			Text:       "",   // Terminal default foreground
+			Muted:      "8",  // Bright black (gray)
+			Accent:     "10", // Bright green
+			Error:      "9",  // Bright red
+			Success:    "10", // Bright green
+			Warning:    "11", // Bright yellow
+			Border:     "8",  // Bright black (gray)
 		},
 	}
 }

@@ -170,7 +170,7 @@ func NewWithPreferences(repo *storage.PostRepository, loader *blog.ContentLoader
 
 	// Build theme list for cycling (includes all built-in themes)
 	themeMap := theme.DefaultThemes()
-	themeNames := []string{"pipboy", "dracula", "nord", "monokai", "monochrome", "amber", "matrix", "paper"}
+	themeNames := []string{"pipboy", "dracula", "nord", "monokai", "monochrome", "amber", "matrix", "paper", "terminal"}
 	themes := make([]*theme.Theme, len(themeNames))
 	currentIndex := 0
 	for i, name := range themeNames {

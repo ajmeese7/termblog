@@ -21,7 +21,8 @@
         // Theme background colors - must match TUI themes
         var termBlogThemes = {
             pipboy: "#0a0a0a", dracula: "#282a36", nord: "#2e3440", monokai: "#272822",
-            monochrome: "#000000", amber: "#0d0800", matrix: "#0d0208", paper: "#f5f5dc"
+            monochrome: "#000000", amber: "#0d0800", matrix: "#0d0208", paper: "#f5f5dc",
+            terminal: "#000000"
         };
         // Apply theme background immediately to prevent flash of wrong color
         var defaultTheme = "{{.DefaultTheme}}";
@@ -321,6 +322,29 @@
                 brightMagenta: "#2e2e2e",
                 brightCyan: "#4a4a4a",
                 brightWhite: "#f5f5dc"
+            },
+            terminal: {
+                background: "#000000",
+                foreground: "#ffffff",
+                cursor: "#ffffff",
+                cursorAccent: "#000000",
+                selectionBackground: "#444444",
+                black: "#000000",
+                red: "#cd0000",
+                green: "#00cd00",
+                yellow: "#cdcd00",
+                blue: "#0000ee",
+                magenta: "#cd00cd",
+                cyan: "#00cdcd",
+                white: "#e5e5e5",
+                brightBlack: "#7f7f7f",
+                brightRed: "#ff0000",
+                brightGreen: "#00ff00",
+                brightYellow: "#ffff00",
+                brightBlue: "#5c5cff",
+                brightMagenta: "#ff00ff",
+                brightCyan: "#00ffff",
+                brightWhite: "#ffffff"
             }
         };
 

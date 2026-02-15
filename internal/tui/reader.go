@@ -168,22 +168,25 @@ func (m *ReaderModel) renderContent() {
 		contentWidth = 20
 	}
 
-	// Load custom style for current theme
-	styleJSON, err := styles.GetStyle(m.themeName)
-	if err != nil {
-		// Fallback to built-in dark style
-		styleJSON, _ = styles.GetStyle("pipboy")
-	}
-
 	// Clear cached chroma style so glamour re-registers with current theme's colors.
 	// Glamour v0.6.0 caches under the fixed name "charm" and skips re-registration.
 	delete(chromaStyles.Registry, "charm")
 
-	// Create a glamour renderer with custom style
-	renderer, err := glamour.NewTermRenderer(
-		glamour.WithStylesFromJSONBytes(styleJSON),
-		glamour.WithWordWrap(contentWidth),
-	)
+	// Load custom Glamour style for current theme, or fall back to auto-detection
+	var renderer *glamour.TermRenderer
+	styleJSON, err := styles.GetStyle(m.themeName)
+	if err != nil {
+		// No custom Glamour style — use auto detection (adapts to terminal)
+		renderer, err = glamour.NewTermRenderer(
+			glamour.WithAutoStyle(),
+			glamour.WithWordWrap(contentWidth),
+		)
+	} else {
+		renderer, err = glamour.NewTermRenderer(
+			glamour.WithStylesFromJSONBytes(styleJSON),
+			glamour.WithWordWrap(contentWidth),
+		)
+	}
 	if err != nil {
 		m.viewport.SetContent(m.content)
 		return

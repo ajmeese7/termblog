@@ -23,6 +23,7 @@ Out of the box, TermBlog ships with themes like:
 - Amber
 - Matrix
 - Paper
+- Terminal
 
 Readers can switch themes in-app with `t`, and preferences persist per SSH key fingerprint.
 

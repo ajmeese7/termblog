@@ -75,6 +75,7 @@ Built-in themes:
 - `amber` - Classic amber CRT aesthetic
 - `matrix` - Green on black digital rain
 - `paper` - Light thermal printer aesthetic
+- `terminal` - Uses your terminal's native colors and background
 
 ## Path Resolution
 

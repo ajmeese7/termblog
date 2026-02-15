@@ -56,6 +56,6 @@ admin:
   # fingerprints:
   #   - "SHA256:abcdef1234567890abcdef1234567890abcdef12"
 
-# Theme name: pipboy, dracula, nord, monokai, monochrome, amber, matrix, paper
+# Theme name: pipboy, dracula, nord, monokai, monochrome, amber, matrix, paper, terminal
 # Or path to custom theme YAML file
 theme: "dracula"

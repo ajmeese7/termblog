@@ -10,7 +10,7 @@ A self-hosted, terminal-based blogging platform. Read and write blog posts throu
 - **Markdown Posts** - Write in Markdown with YAML frontmatter
 - **Vim-style Navigation** - `j/k`, `ctrl+d/u`, `gg/G`, and more
 - **Full-text Search** - Search across titles and tags
-- **Theming** - 8 built-in themes (Pip-Boy, Dracula, Nord, Monokai, Monochrome, Amber, Matrix, Paper) plus custom YAML themes
+- **Theming** - 9 built-in themes (Pip-Boy, Dracula, Nord, Monokai, Monochrome, Amber, Matrix, Paper, Terminal) plus custom YAML themes
 - **Single Binary** - No external runtime dependencies
 
 ## Installation
