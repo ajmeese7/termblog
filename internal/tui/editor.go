@@ -102,6 +102,18 @@ func (m *EditorModel) Update(msg tea.Msg) (*EditorModel, tea.Cmd) {
 			return m, func() tea.Msg {
 				return EditorCloseMsg{FilePath: m.filePath}
 			}
+		case "pgup":
+			pageSize := m.textarea.Height() - 1
+			for i := 0; i < pageSize; i++ {
+				m.textarea.CursorUp()
+			}
+			return m, nil
+		case "pgdown":
+			pageSize := m.textarea.Height() - 1
+			for i := 0; i < pageSize; i++ {
+				m.textarea.CursorDown()
+			}
+			return m, nil
 		}
 	}
 
