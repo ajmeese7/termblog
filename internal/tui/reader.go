@@ -133,13 +133,8 @@ func (m *ReaderModel) View() string {
 		return m.styles.Reader.Render("No post selected")
 	}
 
-	contentWidth := m.width - 4
-	if contentWidth < 20 {
-		contentWidth = 20
-	}
-
 	// Build header with full-width background
-	title := m.styles.ReaderTitle.Width(contentWidth).Render(m.post.Title)
+	title := m.styles.ReaderTitle.Width(m.width).Render(m.post.Title)
 
 	var metaParts []string
 	if m.post.PublishedAt != nil {
@@ -148,14 +143,14 @@ func (m *ReaderModel) View() string {
 	if len(m.post.Tags) > 0 {
 		metaParts = append(metaParts, strings.Join(m.post.Tags, ", "))
 	}
-	meta := m.styles.ReaderMeta.Width(contentWidth).Render(strings.Join(metaParts, " • "))
+	meta := m.styles.ReaderMeta.Width(m.width).Render(strings.Join(metaParts, " • "))
 
 	// Empty line with background
-	emptyLine := m.styles.ContentBg.Width(contentWidth).Render("")
+	emptyLine := m.styles.ContentBg.Width(m.width).Render("")
 
 	// Scroll indicator - fixed width to prevent redraw flicker
 	scrollPercent := m.viewport.ScrollPercent() * 100
-	scrollInfo := m.styles.ReaderScroll.Width(contentWidth).Render(fmt.Sprintf(" %3.0f%% ", scrollPercent))
+	scrollInfo := m.styles.ReaderScroll.Width(m.width).Render(fmt.Sprintf(" %3.0f%% ", scrollPercent))
 
 	// Manually join with newlines instead of lipgloss.JoinVertical
 	// This gives bubbletea's renderer consistent line counts
@@ -211,8 +206,10 @@ func (m *ReaderModel) renderContent() {
 		return
 	}
 
-	// Pad each line with background color to fill full width
-	rendered = m.padContentLines(rendered, contentWidth)
+	// Pad each line with background color to fill full terminal width.
+	// Glamour word-wraps at contentWidth for readability, but the background
+	// must extend to m.width to avoid uncolored gaps at the right edge.
+	rendered = m.padContentLines(rendered, m.width)
 
 	m.viewport.SetContent(rendered)
 }
