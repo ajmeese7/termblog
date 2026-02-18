@@ -5,6 +5,9 @@ version: 2
 
 before:
   hooks:
+    - bash -c "cd web && trunk build --release"
+    - rm -rf internal/server/wasm_dist
+    - cp -r web/dist internal/server/wasm_dist
     - go mod tidy
 
 builds:

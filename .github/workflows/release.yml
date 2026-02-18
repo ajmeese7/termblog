@@ -34,6 +34,7 @@ jobs:
       - name: Build WASM
         run: |
           cd web && trunk build --release
+          rm -rf ../internal/server/wasm_dist
           cp -r dist ../internal/server/wasm_dist
 
       - name: Set up Go
