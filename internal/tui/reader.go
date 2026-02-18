@@ -195,6 +195,9 @@ func (m *ReaderModel) renderContent() {
 	// Extract just the body (skip frontmatter)
 	body := m.extractBody(m.content)
 
+	// Strip leading H1 heading since the title is already shown in the title bar
+	body = stripLeadingH1(body)
+
 	// Generate and prepend table of contents if there are headings
 	if toc := generateTOC(body); toc != "" {
 		body = toc + "\n" + body
@@ -250,6 +253,33 @@ func (m *ReaderModel) extractBody(content string) string {
 		return content
 	}
 	return post.Content
+}
+
+// stripLeadingH1 removes the first H1 heading from markdown content.
+// The title is already shown in the reader's title bar, so displaying
+// the H1 again would be redundant.
+func stripLeadingH1(content string) string {
+	lines := strings.Split(content, "\n")
+	i := 0
+
+	// Skip leading blank lines
+	for i < len(lines) && strings.TrimSpace(lines[i]) == "" {
+		i++
+	}
+
+	// Check if the first non-blank line is an H1 (single #, not ##)
+	if i < len(lines) {
+		trimmed := strings.TrimSpace(lines[i])
+		if strings.HasPrefix(trimmed, "# ") && !strings.HasPrefix(trimmed, "## ") {
+			i++ // skip the H1
+			// Also skip the blank line after the H1 if present
+			if i < len(lines) && strings.TrimSpace(lines[i]) == "" {
+				i++
+			}
+		}
+	}
+
+	return strings.Join(lines[i:], "\n")
 }
 
 // preprocessNestedBlockquotes converts nested blockquotes to a format glamour can handle

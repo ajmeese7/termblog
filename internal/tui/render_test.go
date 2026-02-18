@@ -197,3 +197,56 @@ func TestReaderContentHasBackground(t *testing.T) {
 		}
 	}
 }
+
+func TestStripLeadingH1(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "strips H1 heading",
+			input:    "# My Post Title\n\nSome content here.",
+			expected: "Some content here.",
+		},
+		{
+			name:     "strips H1 with blank line after",
+			input:    "# Title\n\nParagraph one.\n\nParagraph two.",
+			expected: "Paragraph one.\n\nParagraph two.",
+		},
+		{
+			name:     "preserves H2 headings",
+			input:    "## Section Title\n\nContent.",
+			expected: "## Section Title\n\nContent.",
+		},
+		{
+			name:     "strips H1 with leading blank lines",
+			input:    "\n\n# Title\n\nContent.",
+			expected: "Content.",
+		},
+		{
+			name:     "no heading at all",
+			input:    "Just some text.\n\nMore text.",
+			expected: "Just some text.\n\nMore text.",
+		},
+		{
+			name:     "empty content",
+			input:    "",
+			expected: "",
+		},
+		{
+			name:     "H1 only",
+			input:    "# Solo Title",
+			expected: "",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			result := stripLeadingH1(tc.input)
+			if result != tc.expected {
+				t.Errorf("stripLeadingH1(%q)\n  got:      %q\n  expected: %q", tc.input, result, tc.expected)
+			}
+		})
+	}
+}

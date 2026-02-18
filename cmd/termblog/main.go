@@ -18,7 +18,6 @@ import (
 	"github.com/ajmeese7/termblog/internal/theme"
 	"github.com/ajmeese7/termblog/internal/tui"
 	"github.com/ajmeese7/termblog/internal/version"
-	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
 )
 
@@ -37,7 +36,6 @@ func main() {
 
 	rootCmd.AddCommand(serveCmd())
 	rootCmd.AddCommand(newCmd())
-	rootCmd.AddCommand(ptyCmd())
 	rootCmd.AddCommand(syncCmd())
 	rootCmd.AddCommand(publishCmd())
 	rootCmd.AddCommand(unpublishCmd())
@@ -78,17 +76,6 @@ func newCmd() *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runNew(args[0])
-		},
-	}
-}
-
-func ptyCmd() *cobra.Command {
-	return &cobra.Command{
-		Use:    "pty",
-		Short:  "Run the TUI in PTY mode (used by web terminal)",
-		Hidden: true,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return runPTY()
 		},
 	}
 }
@@ -253,12 +240,6 @@ func runServe(sshOnly, httpOnly bool) error {
 		ContentDir:  appInstance.ContentPath(),
 	}
 
-	// Get the binary path for PTY spawning
-	binaryPath, err := os.Executable()
-	if err != nil {
-		binaryPath = os.Args[0]
-	}
-
 	// Create feed generator
 	feedGen := blog.NewFeedGenerator(
 		cfg.Blog.Title,
@@ -317,11 +298,13 @@ func runServe(sshOnly, httpOnly bool) error {
 			"0.0.0.0",
 			cfg.Server.HTTPPort,
 			repo,
+			viewRepo,
 			loader,
 			feedGen,
-			binaryPath,
 			cfg.Blog.Title,
 			cfg.Blog.Description,
+			cfg.Blog.Author,
+			asciiHeader,
 			t,
 			cfg.Theme,
 		)
@@ -374,69 +357,6 @@ func runNew(title string) error {
 
 	fmt.Printf("Created new post: %s\n", filePath)
 	fmt.Printf("Edit the file and set 'draft: false' to publish.\n")
-
-	return nil
-}
-
-func runPTY() error {
-	cfg, err := app.LoadConfig(cfgFile)
-	if err != nil {
-		return fmt.Errorf("failed to load config: %w", err)
-	}
-
-	appInstance, err := app.New(cfgFile)
-	if err != nil {
-		return fmt.Errorf("failed to create app: %w", err)
-	}
-
-	// Open database
-	db, err := storage.Open(appInstance.DatabasePath())
-	if err != nil {
-		return fmt.Errorf("failed to open database: %w", err)
-	}
-	defer db.Close()
-
-	repo := storage.NewPostRepository(db)
-	loader := blog.NewContentLoader(appInstance.ContentPath())
-	t := theme.GetTheme(cfg.Theme, "")
-
-	// Load optional ASCII header
-	var asciiHeader string
-	if cfg.Blog.ASCIIHeader != "" {
-		headerPath := cfg.Blog.ASCIIHeader
-		if !filepath.IsAbs(headerPath) {
-			headerPath = filepath.Join(appInstance.Root, headerPath)
-		}
-		if data, err := os.ReadFile(headerPath); err == nil {
-			asciiHeader = strings.TrimSpace(string(data))
-		}
-	}
-
-	tuiConfig := tui.Config{
-		BlogTitle:   cfg.Blog.Title,
-		Author:      cfg.Blog.Author,
-		ASCIIHeader: asciiHeader,
-		ContentDir:  appInstance.ContentPath(),
-	}
-
-	model := tui.New(repo, loader, t, tuiConfig)
-
-	// Build program options
-	opts := []tea.ProgramOption{
-		tea.WithAltScreen(),
-	}
-
-	// Only enable mouse if not disabled via environment
-	// Web terminal sets TERMBLOG_NO_MOUSE=1 to allow text selection
-	if os.Getenv("TERMBLOG_NO_MOUSE") == "" {
-		opts = append(opts, tea.WithMouseCellMotion())
-	}
-
-	p := tea.NewProgram(model, opts...)
-
-	if _, err := p.Run(); err != nil {
-		return fmt.Errorf("TUI error: %w", err)
-	}
 
 	return nil
 }

@@ -1,6 +1,8 @@
 {
   "permissions": {
     "allow": [
+      "Bash(cargo check:*)",
+      "Bash(cargo test:*)",
       "Bash(cat:*)",
       "Bash(echo:*)",
       "Bash(find:*)",
@@ -9,16 +11,19 @@
       "Bash(git ls-tree:*)",
       "Bash(go build:*)",
       "Bash(go doc:*)",
+      "Bash(go mod graph:*)",
       "Bash(go mod tidy:*)",
       "Bash(go run:*)",
       "Bash(go test:*)",
       "Bash(go vet:*)",
       "Bash(goreleaser check:*)",
       "Bash(grep:*)",
+      "Bash(head:*)",
       "Bash(ls:*)",
       "Bash(make build:*)",
       "Bash(make test-e2e:*)",
       "Bash(make test:*)",
+      "Bash(rustup target list:*)",
       "Bash(tree:*)",
       "Bash(wc:*)",
       "WebFetch(domain:github.com)",

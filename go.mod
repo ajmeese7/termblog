@@ -10,10 +10,8 @@ require (
 	github.com/charmbracelet/lipgloss v1.1.0
 	github.com/charmbracelet/ssh v0.0.0-20250826160808-ebfa259c7309
 	github.com/charmbracelet/wish v1.4.7
-	github.com/creack/pty v1.1.24
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/gorilla/feeds v1.1.2
-	github.com/gorilla/websocket v1.5.1
 	github.com/mattn/go-sqlite3 v1.14.22
 	github.com/muesli/termenv v0.16.0
 	github.com/spf13/cobra v1.8.0
@@ -39,6 +37,7 @@ require (
 	github.com/charmbracelet/x/windows v0.2.0 // indirect
 	github.com/clipperhouse/displaywidth v0.10.0 // indirect
 	github.com/clipperhouse/uax29/v2 v2.6.0 // indirect
+	github.com/creack/pty v1.1.24 // indirect
 	github.com/dlclark/regexp2 v1.4.0 // indirect
 	github.com/erikgeiser/coninput v0.0.0-20211004153227-1c3628e74d0f // indirect
 	github.com/go-logfmt/logfmt v0.6.1 // indirect

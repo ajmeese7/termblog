@@ -23,6 +23,19 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.event.inputs.tag || github.ref }}
 
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Install Trunk
+        uses: jetli/trunk-action@v0.5.0
+
+      - name: Build WASM
+        run: |
+          cd web && trunk build --release
+          cp -r dist ../internal/server/wasm_dist
+
       - name: Set up Go
         uses: actions/setup-go@v5
         with:

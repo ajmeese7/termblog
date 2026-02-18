@@ -1,17 +1,39 @@
 # TermBlog
 
-A self-hosted, terminal-based blogging platform. Read and write blog posts through SSH or a web-based terminal emulator.
+A self-hosted, terminal-based blogging platform. Read and write blog posts through SSH or a browser-native WASM terminal.
 
 ## Features
 
 - **SSH Access** - Connect directly via `ssh localhost -p 2222`
-- **Web Terminal** - Browser-based terminal using xterm.js
+- **WASM Web Terminal** - Client-side TUI via Ratzilla/Ratatui (zero latency, WebGL2)
+- **JSON API** - RESTful API for blog content (`/api/posts`, `/api/search`, etc.)
 - **RSS/Atom/JSON Feeds** - Standard feed syndication
 - **Markdown Posts** - Write in Markdown with YAML frontmatter
 - **Vim-style Navigation** - `j/k`, `ctrl+d/u`, `gg/G`, and more
-- **Full-text Search** - Search across titles and tags
+- **Full-text Search** - SQLite FTS5 search across titles and content
 - **Theming** - 9 built-in themes (Pip-Boy, Dracula, Nord, Monokai, Monochrome, Amber, Matrix, Paper, Terminal) plus custom YAML themes
-- **Single Binary** - No external runtime dependencies
+- **Single Binary** - Go server with embedded WASM assets, no external runtime dependencies
+
+## Architecture
+
+```
+┌──────────────────────────────────┐     ┌─────────────────────┐
+│         Go Server                │     │   Browser (WASM)    │
+│                                  │     │                     │
+│  SSH Server (Wish, :2222)        │     │  Ratzilla/Ratatui   │
+│    └─ Bubbletea TUI              │     │  WebGL2 canvas      │
+│                                  │     │    │                │
+│  HTTP Server (:8080)             │◄────│    └─ fetch /api/*  │
+│    ├─ JSON API  (/api/*)         │     │                     │
+│    ├─ WASM App  (/)              │────►│  (served as static) │
+│    ├─ Static HTML (/archive)     │     └─────────────────────┘
+│    └─ Feeds (/feed.xml)          │
+│                                  │
+│  SQLite + Markdown files         │
+└──────────────────────────────────┘
+```
+
+SSH readers get the Bubbletea TUI rendered server-side. Web readers get a Rust/WASM app (built with Ratzilla) that runs entirely client-side and fetches blog data from the JSON API. Static HTML fallback pages provide SEO and accessibility.
 
 ## Installation
 
@@ -35,12 +57,31 @@ go install github.com/ajmeese7/termblog/cmd/termblog@latest
 
 ### From Source
 
+Building from source requires both Go and Rust toolchains:
+
 ```bash
 git clone https://github.com/ajmeese7/termblog.git
 cd termblog
-make build
 
-# Run with `./termblog serve` since it's local
+# Build everything (WASM + Go binary)
+make build-all
+
+# Or build components individually:
+make build-wasm   # Build Rust/WASM app (requires Rust + Trunk)
+make build        # Build Go binary (embeds WASM assets)
+```
+
+#### Rust/WASM Prerequisites
+
+```bash
+# Install Rust (if not already installed)
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+
+# Add WASM target
+rustup target add wasm32-unknown-unknown
+
+# Install Trunk (WASM bundler)
+cargo install trunk
 ```
 
 ## Quick Start
@@ -48,6 +89,9 @@ make build
 ```bash
 # Start the server
 termblog serve
+
+# or if you built from source:
+# ./termblog serve
 
 # Access via SSH
 ssh localhost -p 2222
@@ -83,6 +127,18 @@ ssh -p 2222 blog.example.com rss > feed.xml     # Export RSS feed
 ssh -p 2222 blog.example.com search golang      # Search posts
 ```
 
+### JSON API
+
+The HTTP server exposes a JSON API for the WASM app (and any other clients):
+
+```bash
+curl localhost:8080/api/posts                    # Paginated post list
+curl localhost:8080/api/posts/my-post            # Full post with markdown
+curl localhost:8080/api/search?q=golang          # Full-text search
+curl localhost:8080/api/tags                     # All tags with counts
+curl localhost:8080/api/config                   # Blog configuration
+```
+
 ### Production SSH with Cloudflare
 
 If your domain uses Cloudflare orange-cloud proxying, raw SSH on `2222` will time out.
@@ -115,7 +171,7 @@ storage:
   content_dir: "content/posts"
 
 theme:
-  name: "dracula"  # pipboy, dracula, nord, monokai
+  name: "dracula"  # pipboy, dracula, nord, monokai, etc.
 ```
 
 ## Writing Posts
@@ -166,17 +222,40 @@ make test
 
 ### End-to-End Browser Tests
 
-Playwright tests verify the web terminal, theme switching via OSC sequences, localStorage persistence, and page background sync:
+Playwright tests verify the web terminal, theme switching, and localStorage persistence:
 
 ```bash
 # Install dependencies (first time only)
 pushd tests/e2e && npm install && npx playwright install chromium && popd
 
 # Start the server
-make build && ./termblog serve &
+make build-all && ./termblog serve &
 
 # Run e2e tests
 make test-e2e
+```
+
+## Development
+
+### WASM Frontend (Hot Reload)
+
+The Rust/WASM frontend can be developed with hot reloading using [Trunk](https://trunkrs.dev/). The `Trunk.toml` proxies `/api/*` requests to the Go server, so both can run simultaneously:
+
+```bash
+# Terminal 1: Start the Go server (port 8080)
+make build && ./termblog serve
+
+# Terminal 2: Start Trunk dev server with hot reload (port 9090)
+cd web && trunk serve --port 9090
+```
+
+Open `http://localhost:9090` in your browser. Trunk watches `web/src/` and `web/index.html` for changes, automatically rebuilding and reloading the browser. API requests are proxied to the Go server on port 8080.
+
+When ready to test the full embedded build:
+
+```bash
+make build-all    # Build WASM, then embed into Go binary
+./termblog serve  # Serves everything from a single binary
 ```
 
 ## Project Structure
@@ -186,11 +265,16 @@ make test-e2e
 ├── internal/
 │   ├── app/            # Configuration management
 │   ├── blog/           # Post parsing, feed generation
-│   ├── server/         # SSH and HTTP servers
+│   ├── server/         # SSH server, HTTP server, JSON API
 │   ├── storage/        # SQLite database layer
 │   ├── theme/          # Color themes and styling
-│   ├── tui/            # Terminal UI (Bubbletea)
+│   ├── tui/            # Terminal UI (Bubbletea, SSH)
 │   └── version/        # Build-time version info
+├── web/                # Rust/WASM app (Ratzilla/Ratatui)
+│   ├── Cargo.toml
+│   ├── Trunk.toml
+│   ├── index.html
+│   └── src/            # Rust source (views, API client, themes)
 ├── tests/e2e/          # Playwright browser tests
 ├── content/posts/      # Markdown blog posts
 └── config.yaml         # Configuration
@@ -198,11 +282,16 @@ make test-e2e
 
 ## Dependencies
 
-Built with the [Charm](https://charm.sh) ecosystem:
+### Go (SSH + Backend)
 - [Bubbletea](https://github.com/charmbracelet/bubbletea) - TUI framework
 - [Glamour](https://github.com/charmbracelet/glamour) - Markdown rendering
 - [Lipgloss](https://github.com/charmbracelet/lipgloss) - Terminal styling
 - [Wish](https://github.com/charmbracelet/wish) - SSH server
+
+### Rust (Web WASM)
+- [Ratzilla](https://github.com/ratzilla-rs/ratzilla) - Ratatui WASM backend (WebGL2)
+- [Ratatui](https://github.com/ratatui/ratatui) - TUI widget library
+- [Trunk](https://trunkrs.dev/) - WASM build tool
 
 ## Documentation
 

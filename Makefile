@@ -1,7 +1,7 @@
 # Termblog Makefile
 
 # Version info
-VERSION ?= 0.5.0
+VERSION ?= 0.6.0
 COMMIT := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 DATE := $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
 
@@ -18,14 +18,27 @@ GOBUILD := $(GOCMD) build
 GOTEST := $(GOCMD) test
 GOMOD := $(GOCMD) mod
 
-.PHONY: all build clean test test-v test-e2e tidy version release tag help
+# WASM build
+WASM_DIR := web
+WASM_DIST := internal/server/wasm_dist
 
-## Build the binary
+.PHONY: all build build-wasm build-all clean clean-all test test-v test-e2e tidy version release tag help
+
+## Build the WASM web app
+build-wasm:
+	cd $(WASM_DIR) && trunk build --release
+	rm -rf $(WASM_DIST)
+	cp -r $(WASM_DIR)/dist $(WASM_DIST)
+
+## Build the Go binary
 build:
 	$(GOBUILD) -tags fts5 -ldflags "$(LDFLAGS)" -o $(BINARY) ./cmd/termblog
 
+## Build WASM then Go binary
+build-all: build-wasm build
+
 ## Build for production (stripped binary)
-build-prod:
+build-prod: build-wasm
 	$(GOBUILD) -tags fts5 -ldflags "$(LDFLAGS) -s -w" -o $(BINARY) ./cmd/termblog
 
 ## Run unit tests (use `make test-v` for verbose output)
@@ -44,9 +57,13 @@ test-e2e:
 tidy:
 	$(GOMOD) tidy
 
-## Clean build artifacts
+## Clean Go build artifacts
 clean:
 	rm -f $(BINARY)
+
+## Clean all build artifacts (Go + WASM)
+clean-all: clean
+	rm -rf $(WASM_DIR)/dist $(WASM_DIR)/target $(WASM_DIST)
 
 ## Show current version
 version:
@@ -73,12 +90,15 @@ help:
 	@echo "Usage: make [target]"
 	@echo ""
 	@echo "Targets:"
-	@echo "  build       Build the binary"
-	@echo "  build-prod  Build production binary (stripped)"
+	@echo "  build       Build the Go binary"
+	@echo "  build-wasm  Build the WASM web app"
+	@echo "  build-all   Build WASM then Go binary"
+	@echo "  build-prod  Build production binary (stripped, includes WASM)"
 	@echo "  test        Run unit tests"
 	@echo "  test-e2e    Run browser e2e tests (server must be running)"
 	@echo "  tidy        Tidy dependencies"
-	@echo "  clean       Remove build artifacts"
+	@echo "  clean       Remove Go build artifacts"
+	@echo "  clean-all   Remove all build artifacts (Go + WASM)"
 	@echo "  version     Show version info"
 	@echo "  tag         Create a git tag (VERSION=x.y.z)"
 	@echo "  release     Create and push a release tag"

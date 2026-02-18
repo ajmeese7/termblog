@@ -1,4 +1,17 @@
-# Build stage
+# WASM build stage
+FROM rust:1.84-alpine AS wasm-builder
+
+RUN apk add --no-cache musl-dev
+RUN rustup target add wasm32-unknown-unknown
+RUN cargo install trunk --locked
+
+WORKDIR /app/web
+COPY web/Cargo.toml web/Cargo.lock* web/Trunk.toml web/index.html ./
+COPY web/src ./src
+
+RUN trunk build --release
+
+# Go build stage
 FROM golang:1.23-alpine AS builder
 
 # Install build dependencies
@@ -12,6 +25,9 @@ RUN go mod download
 
 # Copy source code
 COPY . .
+
+# Copy WASM dist from wasm-builder stage
+COPY --from=wasm-builder /app/web/dist ./internal/server/wasm_dist
 
 # Build with CGO enabled (required for SQLite) and FTS5 for full-text search
 RUN CGO_ENABLED=1 go build -tags fts5 -ldflags="-s -w" -o /termblog ./cmd/termblog

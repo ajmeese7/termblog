@@ -135,14 +135,13 @@ func NewStyles(theme *Theme, r *lipgloss.Renderer) *Styles {
 			Foreground(primary).
 			Background(background).
 			Bold(true).
-			Padding(1, 0).
-			MarginBottom(1),
+			PaddingLeft(2),
 
 		ReaderMeta: r.NewStyle().
 			Foreground(muted).
 			Background(background).
 			Italic(true).
-			MarginBottom(1),
+			PaddingLeft(2),
 
 		ReaderScroll: r.NewStyle().
 			Foreground(muted).

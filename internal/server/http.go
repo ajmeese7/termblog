@@ -1,30 +1,24 @@
 package server
 
 import (
-	"bytes"
-	"compress/flate"
 	"context"
+	"crypto/sha256"
 	"embed"
 	"encoding/json"
 	"fmt"
 	"html/template"
-	"errors"
-	"io"
+	"io/fs"
 	"log"
 	"net/http"
 	"os"
-	"os/exec"
 	"os/signal"
 	"strings"
-	"sync"
 	"syscall"
 	"time"
 
 	"github.com/ajmeese7/termblog/internal/blog"
 	"github.com/ajmeese7/termblog/internal/storage"
 	"github.com/ajmeese7/termblog/internal/theme"
-	"github.com/creack/pty"
-	"github.com/gorilla/websocket"
 )
 
 //go:embed templates/*
@@ -33,23 +27,32 @@ var templatesFS embed.FS
 //go:embed static
 var staticFS embed.FS
 
-// HTTPServer handles HTTP requests and WebSocket connections
+//go:embed wasm_dist
+var wasmFS embed.FS
+
+// HTTPServer handles HTTP requests and serves the WASM web app
 type HTTPServer struct {
 	server *http.Server
 	repo   *storage.PostRepository
+	viewRepo *storage.ViewRepository
 	loader *blog.ContentLoader
 	feed   *blog.FeedGenerator
 
 	host            string
 	port            int
-	binaryPath      string
 	blogTitle       string
 	blogDescription string
+	blogAuthor      string
+	asciiHeader     string
 	theme           *theme.Theme
 	themeKey        string // lowercase key matching JS theme map (e.g. "dracula")
 
 	// Cached templates (parsed once at startup)
 	templates map[string]*template.Template
+
+	// Cached /api/config response (static for server lifetime)
+	configJSON []byte
+	configETag string
 }
 
 // ThemeColors holds CSS-friendly theme colors for templates
@@ -73,10 +76,10 @@ func (s *HTTPServer) themeColors() ThemeColors {
 }
 
 // NewHTTPServer creates a new HTTP server
-func NewHTTPServer(host string, port int, repo *storage.PostRepository, loader *blog.ContentLoader, feed *blog.FeedGenerator, binaryPath string, blogTitle string, blogDescription string, t *theme.Theme, themeKey string) (*HTTPServer, error) {
+func NewHTTPServer(host string, port int, repo *storage.PostRepository, viewRepo *storage.ViewRepository, loader *blog.ContentLoader, feed *blog.FeedGenerator, blogTitle string, blogDescription string, blogAuthor string, asciiHeader string, t *theme.Theme, themeKey string) (*HTTPServer, error) {
 	// Parse and cache templates at startup for efficiency and early error detection
 	templates := make(map[string]*template.Template)
-	templateNames := []string{"index.html", "archive.html", "post.html", "tag.html"}
+	templateNames := []string{"archive.html", "post.html", "tag.html"}
 
 	// Template functions for use in HTML templates
 	funcMap := template.FuncMap{
@@ -93,27 +96,51 @@ func NewHTTPServer(host string, port int, repo *storage.PostRepository, loader *
 
 	s := &HTTPServer{
 		repo:            repo,
+		viewRepo:        viewRepo,
 		loader:          loader,
 		feed:            feed,
 		host:            host,
 		port:            port,
-		binaryPath:      binaryPath,
 		blogTitle:       blogTitle,
 		blogDescription: blogDescription,
+		blogAuthor:      blogAuthor,
+		asciiHeader:     asciiHeader,
 		theme:           t,
 		themeKey:        themeKey,
 		templates:       templates,
 	}
 
+	// Pre-compute /api/config response and ETag (config is static for server lifetime)
+	if err := s.cacheConfigResponse(); err != nil {
+		return nil, fmt.Errorf("failed to cache config response: %w", err)
+	}
+
 	mux := http.NewServeMux()
 
 	// Static files with long cache (immutable embedded assets)
-	staticHandler := http.StripPrefix("/static/", http.FileServer(http.FS(staticFS)))
+	staticSub, _ := fs.Sub(staticFS, "static")
+	staticHandler := http.StripPrefix("/static/", http.FileServer(http.FS(staticSub)))
 	mux.Handle("/static/", cacheControlMiddleware(staticHandler, "public, max-age=31536000, immutable"))
 
-	// Routes
-	mux.HandleFunc("/", s.handleIndex)
-	mux.HandleFunc("/ws", s.handleWebSocket) // WebSocket - not compressed
+	// JSON API routes
+	s.registerAPIRoutes(mux)
+
+	// WASM app at root
+	wasmSub, _ := fs.Sub(wasmFS, "wasm_dist")
+	wasmHandler := http.FileServer(http.FS(wasmSub))
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		// Serve WASM assets for root and WASM-related files
+		if r.URL.Path == "/" || strings.HasSuffix(r.URL.Path, ".wasm") || strings.HasSuffix(r.URL.Path, ".js") {
+			// Set correct MIME types for WASM
+			if strings.HasSuffix(r.URL.Path, ".wasm") {
+				w.Header().Set("Content-Type", "application/wasm")
+			}
+			wasmHandler.ServeHTTP(w, r)
+			return
+		}
+		// Fall through to 404 for other paths
+		http.NotFound(w, r)
+	})
 	mux.HandleFunc("/feed.xml", s.handleRSSFeed)
 	mux.HandleFunc("/feed.json", s.handleJSONFeed)
 	mux.HandleFunc("/sitemap.xml", s.handleSitemap)
@@ -135,27 +162,6 @@ func NewHTTPServer(host string, port int, repo *storage.PostRepository, loader *
 	}
 
 	return s, nil
-}
-
-// handleIndex serves the main terminal page
-func (s *HTTPServer) handleIndex(w http.ResponseWriter, r *http.Request) {
-	if r.URL.Path != "/" {
-		http.NotFound(w, r)
-		return
-	}
-
-	data := struct {
-		Title        string
-		DefaultTheme string
-	}{
-		Title:        s.blogTitle,
-		DefaultTheme: s.themeKey,
-	}
-
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := s.templates["index.html"].Execute(w, data); err != nil {
-		log.Printf("Failed to execute template: %v", err)
-	}
 }
 
 // handleRSSFeed serves the RSS feed
@@ -459,213 +465,48 @@ func cacheControlMiddleware(next http.Handler, cacheControl string) http.Handler
 	})
 }
 
-var upgrader = websocket.Upgrader{
-	ReadBufferSize:  16384,
-	WriteBufferSize: 16384,
-	CheckOrigin: func(r *http.Request) bool {
-		return true // Allow all origins for now
-	},
-}
+// cacheConfigResponse pre-computes the /api/config JSON response and ETag.
+// Config is static for the server's lifetime, so we compute it once at startup.
+func (s *HTTPServer) cacheConfigResponse() error {
+	themes := theme.DefaultThemes()
+	themeInfos := make([]APIThemeInfo, 0, len(themes))
+	for key, t := range themes {
+		themeInfos = append(themeInfos, APIThemeInfo{
+			Key:         key,
+			Name:        t.Name,
+			Description: t.Description,
+			Colors: APIThemeColors{
+				Primary:    t.Colors.Primary,
+				Secondary:  t.Colors.Secondary,
+				Background: t.Colors.Background,
+				Text:       t.Colors.Text,
+				Muted:      t.Colors.Muted,
+				Accent:     t.Colors.Accent,
+				Error:      t.Colors.Error,
+				Success:    t.Colors.Success,
+				Warning:    t.Colors.Warning,
+				Border:     t.Colors.Border,
+			},
+		})
+	}
 
-// handleWebSocket handles WebSocket connections for the PTY bridge
-func (s *HTTPServer) handleWebSocket(w http.ResponseWriter, r *http.Request) {
-	conn, err := upgrader.Upgrade(w, r, nil)
+	cfg := APIConfig{
+		Title:        s.blogTitle,
+		Description:  s.blogDescription,
+		Author:       s.blogAuthor,
+		Themes:       themeInfos,
+		DefaultTheme: s.themeKey,
+		ASCIIHeader:  s.asciiHeader,
+	}
+
+	data, err := json.Marshal(cfg)
 	if err != nil {
-		log.Printf("WebSocket upgrade failed: %v", err)
-		return
+		return err
 	}
-
-	// Clear the write deadline set by http.Server.WriteTimeout. After
-	// hijacking, the underlying net.Conn retains the deadline which would
-	// kill the WebSocket connection after WriteTimeout (15s).
-	if nc := conn.NetConn(); nc != nil {
-		nc.SetDeadline(time.Time{})
-	}
-
-	// Spawn the PTY process
-	cmd := exec.Command(s.binaryPath, "pty")
-
-	// Build env for the PTY subprocess. We must filter out any existing TERM,
-	// COLORTERM, and TERMBLOG_ vars before adding our overrides, because on
-	// Linux duplicate env keys use the FIRST value — so appending would be
-	// silently ignored if the server process already has these set (e.g.
-	// TERM=linux from systemd).
-	baseEnv := os.Environ()
-	env := make([]string, 0, len(baseEnv)+4)
-	for _, e := range baseEnv {
-		if strings.HasPrefix(e, "TERM=") ||
-			strings.HasPrefix(e, "COLORTERM=") ||
-			strings.HasPrefix(e, "TERMBLOG_") {
-			continue
-		}
-		env = append(env, e)
-	}
-	env = append(env,
-		"TERM=xterm-256color",
-		"COLORTERM=truecolor",  // xterm.js supports 24-bit color; without this, Lipgloss downgrades hex colors to 256-color approximations
-		"TERMBLOG_NO_MOUSE=1",  // Disable mouse mode to allow text selection in browser
-	)
-
-	// Pass the web user's saved theme so the TUI starts with the correct theme
-	if webTheme := r.URL.Query().Get("theme"); webTheme != "" {
-		env = append(env, "TERMBLOG_WEB_THEME="+webTheme)
-	}
-	cmd.Env = env
-
-	ptmx, err := pty.Start(cmd)
-	if err != nil {
-		log.Printf("Failed to start PTY: %v", err)
-		conn.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("Error: %v", err)))
-		conn.Close()
-		return
-	}
-
-	// Set initial size
-	pty.Setsize(ptmx, &pty.Winsize{
-		Rows: 24,
-		Cols: 80,
-	})
-
-	var wg sync.WaitGroup
-	done := make(chan struct{})
-
-	// Ping keepalive to prevent Cloudflare (100s) and proxies from
-	// closing idle WebSocket connections.
-	go func() {
-		ticker := time.NewTicker(30 * time.Second)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-done:
-				return
-			case <-ticker.C:
-				if err := conn.WriteControl(websocket.PingMessage, nil, time.Now().Add(5*time.Second)); err != nil {
-					return
-				}
-			}
-		}
-	}()
-
-	// PTY -> WebSocket (with output batching at ~60fps)
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-
-		const flushInterval = 16 * time.Millisecond // ~60fps
-		var pending []byte
-		var mu sync.Mutex
-		var compBuf bytes.Buffer
-
-		// Flush accumulated data to WebSocket (deflate-compressed)
-		flush := func() bool {
-			mu.Lock()
-			if len(pending) == 0 {
-				mu.Unlock()
-				return true
-			}
-			data := pending
-			pending = nil
-			mu.Unlock()
-
-			// Compress with raw deflate (fastest level)
-			compBuf.Reset()
-			w, _ := flate.NewWriter(&compBuf, flate.BestSpeed)
-			w.Write(data)
-			w.Close()
-
-			if err := conn.WriteMessage(websocket.BinaryMessage, compBuf.Bytes()); err != nil {
-				if !websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway) &&
-					!strings.Contains(err.Error(), "close sent") {
-					log.Printf("WebSocket write error: %v", err)
-				}
-				return false
-			}
-			return true
-		}
-
-		ticker := time.NewTicker(flushInterval)
-		defer ticker.Stop()
-
-		// Read from PTY in a separate goroutine, append to pending buffer
-		ptyDone := make(chan struct{})
-		go func() {
-			defer close(ptyDone)
-			buf := make([]byte, 32768)
-			for {
-				n, err := ptmx.Read(buf)
-				if err != nil {
-					if err != io.EOF && !errors.Is(err, syscall.EIO) {
-						log.Printf("PTY read error: %v", err)
-					}
-					return
-				}
-				if n > 0 {
-					mu.Lock()
-					pending = append(pending, buf[:n]...)
-					mu.Unlock()
-				}
-			}
-		}()
-
-		for {
-			select {
-			case <-done:
-				flush()
-				return
-			case <-ptyDone:
-				flush()
-				return
-			case <-ticker.C:
-				if !flush() {
-					return
-				}
-			}
-		}
-	}()
-
-	// WebSocket -> PTY
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		defer close(done)
-		for {
-			msgType, msg, err := conn.ReadMessage()
-			if err != nil {
-				if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-					log.Printf("WebSocket read error: %v", err)
-				}
-				return
-			}
-
-			switch msgType {
-			case websocket.BinaryMessage, websocket.TextMessage:
-				// Check for resize message
-				if len(msg) > 0 && msg[0] == '\x01' {
-					// Resize message format: \x01{rows},{cols}
-					var rows, cols uint16
-					if _, err := fmt.Sscanf(string(msg[1:]), "%d,%d", &rows, &cols); err == nil {
-						pty.Setsize(ptmx, &pty.Winsize{
-							Rows: rows,
-							Cols: cols,
-						})
-					}
-				} else {
-					// Regular input
-					if _, err := ptmx.Write(msg); err != nil {
-						log.Printf("PTY write error: %v", err)
-						return
-					}
-				}
-			}
-		}
-	}()
-
-	// Wait for PTY process to exit, then close PTY and WebSocket to
-	// unblock goroutines cleanly before waiting for them to finish.
-	cmd.Wait()
-	ptmx.Close()
-	conn.Close()
-	wg.Wait()
+	s.configJSON = data
+	hash := sha256.Sum256(data)
+	s.configETag = fmt.Sprintf(`"%x"`, hash[:8])
+	return nil
 }
 
 // Start starts the HTTP server

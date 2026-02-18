@@ -1,0 +1,12 @@
+[build]
+# Output directory for trunk build
+dist = "dist"
+
+[watch]
+# Directories to watch for changes
+watch = ["src", "index.html"]
+
+[[proxy]]
+# Proxy /api/* requests to the Go server during development
+backend = "http://localhost:8080/api/"
+rewrite = "/api/"

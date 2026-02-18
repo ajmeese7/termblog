@@ -3,7 +3,6 @@ package tui
 import (
 	"fmt"
 	"log"
-	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -134,8 +133,15 @@ type Model struct {
 	isAdmin bool // Whether the current user has admin privileges
 
 	// View state
-	currentView View
-	prevView    View
+	currentView   View
+	prevView      View
+	savedPrevView View // stashed prevView when an overlay (admin/help/theme/search) opens
+	searchOrigin  View // which view search was opened from (List or Reader)
+
+	// Saved reader state — preserved when search is opened from reader,
+	// restored when search ESC returns to reader
+	savedReaderPost    *storage.Post
+	savedReaderContent string
 
 	// Sub-models
 	list          *ListModel
@@ -180,17 +186,6 @@ func NewWithPreferences(repo *storage.PostRepository, loader *blog.ContentLoader
 		}
 	}
 
-	// If the web client passed a saved theme, use it instead of the config default
-	if webTheme := os.Getenv("TERMBLOG_WEB_THEME"); webTheme != "" {
-		for i, name := range themeNames {
-			if name == webTheme {
-				currentIndex = i
-				styles = theme.NewStyles(themes[i], r)
-				break
-			}
-		}
-	}
-
 	m := &Model{
 		repo:        repo,
 		prefRepo:    prefRepo,
@@ -220,21 +215,7 @@ func NewWithPreferences(repo *storage.PostRepository, loader *blog.ContentLoader
 
 // Init implements tea.Model
 func (m *Model) Init() tea.Cmd {
-	return tea.Batch(m.list.Init(), emitWebThemeCmd(m.themeNames[m.themeIndex]))
-}
-
-// emitWebThemeCmd returns a tea.Cmd that writes an OSC sequence directly to stdout
-// to notify the web terminal of a theme change. This bypasses Bubbletea's renderer
-// which would strip the OSC sequence during its diff-based rendering.
-func emitWebThemeCmd(themeName string) tea.Cmd {
-	osc := emitWebThemeChange(themeName)
-	if osc == "" {
-		return nil
-	}
-	return func() tea.Msg {
-		os.Stdout.WriteString(osc)
-		return nil
-	}
+	return m.list.Init()
 }
 
 // Update implements tea.Model
@@ -242,6 +223,12 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
 	switch msg := msg.(type) {
+	case postsLoadedMsg:
+		// Always route to list model regardless of current view
+		var cmd tea.Cmd
+		m.list, cmd = m.list.Update(msg)
+		return m, cmd
+
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
@@ -270,6 +257,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		// Handle theme toggle (t key) - open theme selector
 		if msg.String() == "t" && m.currentView != ViewSearch && m.currentView != ViewThemeSelector {
+			m.savedPrevView = m.prevView
 			m.prevView = m.currentView
 			m.currentView = ViewThemeSelector
 			return m, tea.ClearScreen
@@ -279,7 +267,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if key.Matches(msg, m.keyMap.Help) && m.currentView != ViewSearch {
 			if m.currentView == ViewHelp {
 				m.currentView = m.prevView
+				m.prevView = m.savedPrevView
 			} else {
+				m.savedPrevView = m.prevView
 				m.prevView = m.currentView
 				m.currentView = ViewHelp
 			}
@@ -289,11 +279,13 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Handle escape to close help
 		if key.Matches(msg, m.keyMap.Back) && m.currentView == ViewHelp {
 			m.currentView = m.prevView
+			m.prevView = m.savedPrevView
 			return m, tea.ClearScreen
 		}
 
 		// Handle admin toggle (a key) - only for admins, not in search/admin views
 		if msg.String() == "a" && m.isAdmin && m.currentView != ViewSearch && m.currentView != ViewAdmin {
+			m.savedPrevView = m.prevView
 			m.prevView = m.currentView
 			m.currentView = ViewAdmin
 			return m, tea.Batch(tea.ClearScreen, m.admin.Init())
@@ -301,6 +293,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case PostSelectedMsg:
 		// User selected a post in list view
+		m.prevView = ViewList
 		m.currentView = ViewReader
 		m.reader.SetPost(msg.Post, msg.Content)
 		// Record view for analytics
@@ -319,28 +312,51 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tea.ClearScreen
 
 	case BackToListMsg:
-		// User pressed back in reader view
-		m.currentView = ViewList
+		// User pressed back in reader view — return to wherever they came from
+		m.currentView = m.prevView
+		if m.currentView == ViewSearch {
+			// Returning to search after viewing a search result.
+			// Restore search's return chain: search ESC → searchOrigin → List
+			m.prevView = m.searchOrigin
+			m.savedPrevView = ViewList
+		}
 		return m, tea.ClearScreen
 
 	case SearchActivatedMsg:
-		// User activated search
+		// User activated search — save prevView so search is a proper overlay
+		m.searchOrigin = m.currentView
+		m.savedPrevView = m.prevView
 		m.prevView = m.currentView
+		// Save reader state so it can be restored when search closes
+		if m.currentView == ViewReader && m.reader.post != nil {
+			m.savedReaderPost = m.reader.post
+			m.savedReaderContent = m.reader.content
+		}
 		m.currentView = ViewSearch
 		return m, tea.Batch(tea.ClearScreen, m.search.Focus())
 
 	case SearchCompletedMsg:
 		// Search completed, show results or selected post
 		if msg.SelectedPost != nil {
+			// Reader's back goes to search; search's back goes to savedPrevView origin
+			m.prevView = ViewSearch
 			m.currentView = ViewReader
 			m.reader.SetPost(msg.SelectedPost, msg.Content)
 		} else {
 			m.currentView = m.prevView
+			m.prevView = m.savedPrevView
 		}
 		return m, tea.ClearScreen
 
 	case SearchCancelledMsg:
 		m.currentView = m.prevView
+		m.prevView = m.savedPrevView
+		// Restore saved reader post when returning to reader after search
+		if m.currentView == ViewReader && m.savedReaderPost != nil {
+			m.reader.SetPost(m.savedReaderPost, m.savedReaderContent)
+			m.savedReaderPost = nil
+			m.savedReaderContent = ""
+		}
 		return m, tea.ClearScreen
 
 	case StatusMsg:
@@ -358,7 +374,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.themeSelector.SetStyles(m.styles)
 		m.admin.SetStyles(m.styles)
 		m.editor.SetStyles(m.styles)
-		return m, emitWebThemeCmd(msg.Name)
+		return m, nil
 
 	case ThemeSelectedMsg:
 		// Apply the selected theme
@@ -371,6 +387,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.admin.SetStyles(m.styles)
 		m.editor.SetStyles(m.styles)
 		m.currentView = m.prevView
+		m.prevView = m.savedPrevView
 
 		// Save theme preference
 		if m.fingerprint != "" && m.prefRepo != nil {
@@ -382,7 +399,6 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.statusMsg = "Theme: " + msg.Theme.Name
 		return m, tea.Batch(
 			tea.ClearScreen,
-			emitWebThemeCmd(msg.Name),
 			tea.Tick(1500*time.Millisecond, func(t time.Time) tea.Msg {
 				return clearStatusMsg{}
 			}),
@@ -399,11 +415,13 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.admin.SetStyles(m.styles)
 		m.editor.SetStyles(m.styles)
 		m.currentView = m.prevView
-		return m, tea.Batch(tea.ClearScreen, emitWebThemeCmd(m.themeNames[m.themeIndex]))
+		m.prevView = m.savedPrevView
+		return m, tea.ClearScreen
 
 	case AdminCloseMsg:
 		// Close admin view
 		m.currentView = m.prevView
+		m.prevView = m.savedPrevView
 		// Refresh the list in case posts changed
 		return m, tea.Batch(tea.ClearScreen, m.list.Init())
 
@@ -615,36 +633,6 @@ func (m *Model) renderHelpLine(key, desc string) string {
 	k := m.styles.HelpKey.Render(key)
 	d := m.styles.HelpDesc.Render(" - " + desc)
 	return k + d
-}
-
-// cycleTheme switches to the next theme in the list
-func (m *Model) cycleTheme() tea.Cmd {
-	m.themeIndex = (m.themeIndex + 1) % len(m.themes)
-	newTheme := m.themes[m.themeIndex]
-	m.styles = theme.NewStyles(newTheme, m.renderer)
-
-	// Update styles in sub-models
-	m.list.styles = m.styles
-	m.reader.SetTheme(m.styles, m.themeNames[m.themeIndex])
-	m.search.styles = m.styles
-	m.admin.SetStyles(m.styles)
-	m.editor.SetStyles(m.styles)
-
-	// Save theme preference if we have a fingerprint
-	if m.fingerprint != "" && m.prefRepo != nil {
-		if err := m.prefRepo.SetTheme(m.fingerprint, m.themeNames[m.themeIndex]); err != nil {
-			log.Printf("Failed to save theme preference: %v", err)
-		}
-	}
-
-	// Show theme name temporarily
-	m.statusMsg = "Theme: " + newTheme.Name
-	m.isError = false
-
-	// Return command to clear status after delay (1.5 seconds)
-	return tea.Tick(1500*time.Millisecond, func(t time.Time) tea.Msg {
-		return clearStatusMsg{}
-	})
 }
 
 // clearStatusMsg is sent to clear the status message after a delay

@@ -36,6 +36,11 @@ Thumbs.db
 dist/
 build/
 
+# WASM build artifacts
+web/dist/
+web/target/
+internal/server/wasm_dist/
+
 # Temporary files
 tmp/
 temp/

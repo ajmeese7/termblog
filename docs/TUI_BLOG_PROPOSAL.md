@@ -2,27 +2,11 @@
 
 ## Vision
 
-A self-hosted blogging platform that delivers content through an authentic terminal experience. Readers can SSH directly into your blog or use a web-based terminal emulator. Think Bearblog meets Terminal.shop meets the Pip-Boy aesthetic.
+A self-hosted blogging platform that delivers content through an authentic terminal experience. Readers can SSH directly into your blog or use a browser-native WASM terminal. Think Bearblog meets Terminal.shop meets the Pip-Boy aesthetic.
 
-## Why This Approach Over Alternatives
+## Tech Stack
 
-### Considered Alternatives
-
-| Approach | Pros | Cons |
-|----------|------|------|
-| **Static site with CSS terminal theme** | Simple, fast, SEO-friendly | Feels fake, no real interactivity |
-| **xterm.js only (web terminal)** | Works in browser, no SSH needed | Still feels like a gimmick |
-| **SSH-only (like terminal.shop)** | Authentic experience | Limits audience, no SEO |
-| **Hybrid: SSH + Web Terminal + Static** | Best of all worlds | More complexity |
-
-**Recommendation: Hybrid approach** - This gives you:
-- SSH access for terminal purists (`ssh blog.yoursite.com`)
-- Web-based terminal for casual visitors
-- Static HTML fallback for SEO/RSS/accessibility
-
-## Recommended Tech Stack
-
-### Core: Go + Charm Ecosystem
+### Core: Go + Charm Ecosystem (SSH/Backend)
 
 | Component | Technology | Rationale |
 |-----------|------------|-----------|
@@ -30,16 +14,24 @@ A self-hosted blogging platform that delivers content through an authentic termi
 | **SSH Server** | [Wish](https://github.com/charmbracelet/wish) | Made for exactly this use case |
 | **Styling** | [Lipgloss](https://github.com/charmbracelet/lipgloss) | CSS-like styling for terminals |
 | **Markdown** | [Glamour](https://github.com/charmbracelet/glamour) | Terminal markdown rendering |
-| **Web Terminal** | [xterm.js](https://xtermjs.org/) | Industry standard web terminal |
-| **Web Framework** | Minimal Go HTTP or [Echo](https://echo.labstack.com/) | Lightweight, same language |
 | **Content Storage** | Markdown files + SQLite | Simple, portable, git-friendly |
 | **RSS Generation** | [gorilla/feeds](https://github.com/gorilla/feeds) | Standard Go RSS library |
 
-### Why Go + Charm Over Alternatives
+### Web: Rust/WASM + Ratzilla (Browser)
 
-- **Rust + Ratatui**: Great library, but Charm ecosystem has SSH (Wish) built-in; Rust lacks equivalent
-- **Python + Textual**: Good for TUI, but SSH story is weaker and performance matters for hosting
-- **Node.js**: No mature TUI library comparable to Bubbletea
+| Component | Technology | Rationale |
+|-----------|------------|-----------|
+| **TUI Framework** | [Ratzilla](https://github.com/ratzilla-rs/ratzilla) | Official Ratatui WASM project, WebGL2 backend |
+| **Widgets** | [Ratatui](https://github.com/ratatui/ratatui) | Re-exported by Ratzilla, rich widget library |
+| **Build Tool** | [Trunk](https://trunkrs.dev/) | WASM bundler and dev server |
+| **API Client** | web-sys + wasm-bindgen | Browser fetch API for JSON endpoints |
+| **Data** | JSON API from Go server | Posts, search, config served as JSON |
+
+### Why This Architecture
+
+The web terminal previously used an xterm.js + WebSocket PTY bridge (browser -> WS -> Go PTY subprocess -> Bubbletea -> PTY -> WS -> browser). Despite optimizations (deflate compression, 60fps batching, WebGL renderer), production latency remained too high for a good web experience — each keystroke round-tripped through the network.
+
+The new architecture keeps Go + Bubbletea for SSH (where it works great) and replaces the web terminal with a Rust/WASM app using Ratzilla. The TUI runs entirely client-side in the browser: zero server-side rendering cost, zero network latency for UI interactions. The Go server just serves the WASM app and a JSON API for blog content.
 
 ## Architecture
 
@@ -48,30 +40,50 @@ A self-hosted blogging platform that delivers content through an authentic termi
 │                         TermBlog Server                         │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                 │
-│  ┌─────────────┐    ┌─────────────┐    ┌─────────────────────┐  │
-│  │  SSH Server │    │ HTTP Server │    │   Admin Interface   │  │
-│  │   (Wish)    │    │   (Echo)    │    │   (Web or TUI)      │  │
-│  │   :22       │    │   :443      │    │   :8080             │  │
-│  └──────┬──────┘    └──────┬──────┘    └──────────┬──────────┘  │
-│         │                  │                      │             │
-│         ▼                  ▼                      ▼             │
-│  ┌───────────────────────────────────────────────────────────┐  |
-│  │                    Core Blog Engine                       │  |
-│  ├───────────────────────────────────────────────────────────┤  |
-│  │  • Post Management (CRUD)                                 │  |
-│  │  • RSS Feed Generator                                     |  │
-│  │  • Search Index                                           |  │
-│  └───────────────────────────────────────────────────────────┘  |
+│  ┌─────────────┐    ┌──────────────────────────────────────┐    │
+│  │  SSH Server │    │          HTTP Server                 │    │
+│  │   (Wish)    │    │                                      │    │
+│  │   :2222     │    │  ┌────────────┐  ┌───────────────┐   │    │
+│  │             │    │  │  JSON API  │  │  WASM Assets  │   │    │
+│  │  Bubbletea  │    │  │ /api/*     │  │  (embedded)   │   │    │
+│  │  TUI        │    │  └────────────┘  └───────────────┘   │    │
+│  │  (server-   │    │  ┌────────────┐  ┌───────────────┐   │    │
+│  │   side)     │    │  │ Static HTML│  │ Feeds/Sitemap │   │    │
+│  │             │    │  │ /archive   │  │ /feed.xml     │   │    │
+│  └──────┬──────┘    │  └────────────┘  └───────────────┘   │    │
+│         │           └──────────────────────┬───────────────┘    │
+│         │                                  │                    │
+│         ▼                                  ▼                    │
+│  ┌───────────────────────────────────────────────────────────┐  │
+│  │                    Core Blog Engine                       │  │
+│  ├───────────────────────────────────────────────────────────┤  │
+│  │  • Post Management (CRUD)                                 │  │
+│  │  • RSS/Atom/JSON Feed Generator                           │  │
+│  │  • Full-Text Search (FTS5)                                │  │
+│  │  • View Analytics                                         │  │
+│  └───────────────────────────────────────────────────────────┘  │
 │                              │                                  │
 │                              ▼                                  │
-│  ┌───────────────────────────────────────────────────────────┐  |
-│  │                    Storage Layer                          │  |
-│  ├───────────────────────────────────────────────────────────┤  |
-│  │  • SQLite (metadata, themes, settings)                    │  |
-│  │  • Filesystem (markdown posts, assets)                    │  |
-│  └───────────────────────────────────────────────────────────┘  |
+│  ┌───────────────────────────────────────────────────────────┐  │
+│  │                    Storage Layer                          │  │
+│  ├───────────────────────────────────────────────────────────┤  │
+│  │  • SQLite (metadata, FTS5, views, preferences)            │  │
+│  │  • Filesystem (markdown posts)                            │  │
+│  └───────────────────────────────────────────────────────────┘  │
 │                                                                 │
 └─────────────────────────────────────────────────────────────────┘
+
+                    ┌─────────────────────────┐
+                    │      Browser Client     │
+                    ├─────────────────────────┤
+                    │  Ratzilla/Ratatui WASM  │
+                    │  (WebGL2 canvas)        │
+                    │                         │
+                    │  • Client-side TUI      │
+                    │  • fetch() → JSON API   │
+                    │  • localStorage themes  │
+                    │  • Zero latency UI      │
+                    └─────────────────────────┘
 ```
 
 ## User Experiences
@@ -84,8 +96,8 @@ $ ssh blog.yoursite.com
 │            AARON'S TERMINAL BLOG                │
 │         ══════════════════════════              │
 │                                                 │
-│  [↑/↓] Navigate   [Enter] Read   [/] Search    │
-│  [r] RSS Info     [t] Theme      [q] Quit      │
+│  [↑/↓] Navigate   [Enter] Read   [/] Search     │
+│  [r] RSS Info     [t] Theme      [q] Quit       │
 ╰─────────────────────────────────────────────────╯
 
   RECENT POSTS
@@ -98,11 +110,11 @@ $ ssh blog.yoursite.com
   [Page 1/5]  ─────────────────────────  20 posts
 ```
 
-### 2. Reader via Web Terminal
-Browser loads a black page with xterm.js that connects via WebSocket to the same TUI, giving identical experience.
+### 2. Reader via Web (WASM)
+Browser loads a page with the Ratzilla WASM app. The TUI renders directly on a WebGL2 canvas — same visual appearance as SSH, but running entirely client-side. Blog data is fetched from the JSON API. Theme changes are saved to localStorage and applied instantly.
 
 ### 3. Reader via Static HTML (Fallback)
-Clean, minimal HTML with optional terminal-inspired CSS. Full SEO, works without JS.
+Clean, minimal HTML with terminal-inspired CSS at `/archive`, `/posts/:slug`, `/tags/:tag`. Full SEO, works without JS.
 
 ### 4. Author/Admin Experience
 ```
@@ -126,8 +138,6 @@ $ ssh admin@blog.yoursite.com
     Upcoming Post                      publishes 2026-02-05
 ```
 
-Alternatively, a web-based admin panel at `/admin` with a simple markdown editor.
-
 ---
 
 ## Detailed Implementation TODO
@@ -135,316 +145,128 @@ Alternatively, a web-based admin panel at `/admin` with a simple markdown editor
 ### Phase 1: Core Infrastructure (Foundation) ✅ COMPLETE
 
 #### 1.1 Project Setup
-- [x] Initialize Go module (`go mod init github.com/ajmeese7/termblog`)
-- [x] Set up directory structure:
-  ```
-  termblog/
-  ├── cmd/
-  │   └── termblog/
-  │       └── main.go
-  ├── internal/
-  │   ├── app/            # Configuration management
-  │   ├── blog/           # Core blog logic
-  │   ├── server/         # SSH and HTTP servers
-  │   ├── tui/            # Bubbletea models
-  │   ├── storage/        # SQLite + filesystem
-  │   ├── theme/          # Terminal themes
-  │   └── version/        # Build-time version info
-  ├── content/
-  │   └── posts/          # Markdown files
-  └── config.yaml
-  ```
-- [x] Add core dependencies:
-  - `github.com/charmbracelet/bubbletea`
-  - `github.com/charmbracelet/wish`
-  - `github.com/charmbracelet/lipgloss`
-  - `github.com/charmbracelet/glamour`
-  - `github.com/mattn/go-sqlite3`
-  - `gopkg.in/yaml.v3`
-  - `github.com/fsnotify/fsnotify` (file watching)
-  - `github.com/gorilla/feeds` (RSS/Atom/JSON feeds)
-  - `github.com/gorilla/websocket` (web terminal)
-  - `github.com/spf13/cobra` (CLI)
-- [x] Create configuration system (YAML-based)
-- [x] Set up basic logging
+- [x] Go module, directory structure, core dependencies
+- [x] Configuration system (YAML-based)
+- [x] Basic logging
 
 #### 1.2 Storage Layer
-- [x] Design SQLite schema:
-  ```sql
-  -- Posts metadata (content in filesystem)
-  CREATE TABLE posts (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    slug TEXT UNIQUE NOT NULL,
-    title TEXT NOT NULL,
-    filepath TEXT NOT NULL,
-    status TEXT NOT NULL DEFAULT 'draft' CHECK(status IN ('draft', 'published', 'scheduled')),
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    published_at DATETIME,
-    tags TEXT DEFAULT '[]'
-  );
-
-  -- Settings
-  CREATE TABLE settings (
-    key TEXT PRIMARY KEY,
-    value TEXT NOT NULL
-  );
-
-  -- User preferences (theme by SSH fingerprint)
-  CREATE TABLE user_preferences (
-    fingerprint TEXT PRIMARY KEY,
-    theme TEXT,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-  );
-  ```
-- [x] Implement post repository (CRUD operations)
-- [x] Implement filesystem watcher for hot-reload of markdown files
-- [x] Build markdown parser with frontmatter support
+- [x] SQLite schema (posts, settings, user_preferences, views)
+- [x] Post repository (CRUD operations)
+- [x] Filesystem watcher for hot-reload
+- [x] Markdown parser with frontmatter support
+- [x] Full-text search (FTS5)
 
 #### 1.3 Blog Engine Core
 - [x] Post listing with pagination
 - [x] Post retrieval by slug
-- [x] Tag-based filtering (via HTTP routes /tags/:tag)
-- [x] Search (LIKE-based on titles and tags)
-- [x] Full-text search (SQLite FTS5)
+- [x] Tag-based filtering
 - [x] RSS/Atom/JSON feed generation
 - [x] Sitemap generation
 
 ### Phase 2: TUI Reader Interface ✅ COMPLETE
 
 #### 2.1 Bubbletea Models
-- [x] **Main Menu Model**: Navigation hub
-  - Recent posts list
-  - Search prompt
-  - Theme selector
-  - Help overlay
-- [x] **Post List Model**: Paginated, filterable post listing
-  - Vim-style navigation (j/k/gg/G, ctrl+d/u, ctrl+f/b)
-  - Mouse scrolling (SSH only)
-- [ ] Tag filtering in TUI (only via web /tags/:tag)
-- [ ] Sort options (date, title) - *only date sorting*
-- [x] **Post Reader Model**: Full post display
-  - Glamour markdown rendering
-  - Scrolling (mouse + keyboard)
-  - "Back to list" navigation
-- [ ] Link extraction and display
-- [x] **Search Model**: Interactive search
-  - Real-time filtering
-  - Search in titles + tags
-- [ ] Highlight matches
-- [x] **Theme Selector Model**: Live theme preview
-  - Cycle through installed themes
-  - Instant preview
+- [x] Main menu, post list (vim navigation), post reader (Glamour), search, theme selector
 
 #### 2.2 Terminal Themes System
-- [x] Design theme specification format (Go structs with YAML loading support)
-- [x] Implement built-in themes:
-  - [x] **Monochrome**: Pure black and white
-  - [x] **Pip-Boy**: Green phosphor CRT aesthetic
-  - [x] **Amber**: Amber monochrome terminal
-  - [x] **Matrix**: Green on black, "digital rain" feel
-  - [x] **Paper**: Light theme, like thermal printer output
-  - [x] **Dracula**: Dark theme with vibrant colors
-  - [x] **Nord**: Arctic, north-bluish palette
-  - [x] **Monokai**: Classic Monokai scheme
-- [x] Theme persistence (remember user choice via SSH key fingerprint)
-- [x] Custom theme loading from YAML files
-- [ ] Theme hot-reload for development (themes are Go code)
-
-#### 2.3 Visual Polish
-- [x] ASCII art header/logo support (config option)
-- [ ] Animated transitions (subtle, optional)
-- [x] Loading states ("Loading..." message)
-- [x] Box drawing characters for borders (Lipgloss)
-- [x] Status bar with current location/hints
+- [x] 9 built-in themes: Pip-Boy, Dracula, Nord, Monokai, Monochrome, Amber, Matrix, Paper, Terminal
+- [x] Theme persistence (per SSH fingerprint)
+- [x] ASCII art header support
 
 ### Phase 3: SSH Server ✅ COMPLETE
 
-#### 3.1 Wish Integration
-- [x] Basic SSH server setup with Wish
-- [x] Host key generation and management
-- [x] Exit message display after TUI closes
-- [x] MOTD support (config option)
-- [x] Graceful connection handling
-- [x] Rate limiting (configurable limit/window)
-- [x] Connection logging
-
-#### 3.2 Authentication (Optional)
-- [x] Public key authentication (for fingerprint tracking)
-- [x] Anonymous read access (default)
-- [ ] `~/.ssh/authorized_keys` integration for admin
-
-#### 3.3 SSH Commands (Non-TUI Mode)
-- [x] `ssh blog.yoursite.com posts` - List posts as plain text
-- [x] `ssh blog.yoursite.com read <slug>` - Output post to stdout
-- [x] `ssh blog.yoursite.com read <slug> --rendered` - Output plain text
-- [x] `ssh blog.yoursite.com rss` - Output RSS feed
-- [x] `ssh blog.yoursite.com search <query>` - Search posts
-- [x] `ssh blog.yoursite.com help` - Show available commands
+- [x] Wish integration with host key management
+- [x] Rate limiting, connection logging, MOTD
+- [x] Non-interactive SSH commands (posts, read, rss, search, help)
+- [x] Public key auth for fingerprint tracking
 
 ### Phase 4: Web Interface ✅ COMPLETE
 
-#### 4.1 Web Terminal (xterm.js)
-- [x] Minimal HTML page that loads xterm.js
-- [x] WebSocket proxy to PTY backend
-- [x] Mobile-responsive terminal sizing
-- [x] Copy/paste support (Ctrl+C copies selection)
-- [x] Connection status indicator
-- [x] Reconnection logic with exponential backoff
-- [x] Theme sync via OSC 7777 sequences
-- [x] Theme persistence in localStorage
-- [ ] Touch support for mobile (basic xterm.js only)
+#### 4.1 JSON API
+- [x] `GET /api/posts?page=1&per_page=10` — paginated published posts
+- [x] `GET /api/posts/{slug}` — full post with raw markdown
+- [x] `GET /api/search?q=query&limit=20` — FTS5 search
+- [x] `GET /api/tags` — all tags with counts
+- [x] `GET /api/tags/{tag}` — posts filtered by tag
+- [x] `GET /api/config` — blog title, description, themes, ASCII header
+- [x] `POST /api/views/{slug}` — record view (hashed IP)
+- [x] CORS headers for local dev
 
-#### 4.2 Static HTML Fallback
-- [x] Minimal HTML templates for:
-  - [x] Archive/post list (/archive)
-  - [x] Individual post pages (/posts/:slug)
-  - [x] Tag pages (/tags/:tag)
-  - [ ] RSS feed page (with subscription instructions)
-- [x] Terminal-inspired CSS theme (uses config theme colors)
+#### 4.2 Ratzilla WASM App (`web/`)
+- [x] Ratzilla + Ratatui scaffold with WebGL2 backend
+- [x] API client (web-sys fetch)
+- [x] Post list view (cursor, pagination, vim keys)
+- [x] Post reader view (markdown rendering, scrolling)
+- [x] Search view (text input, debounced API search)
+- [x] Theme selector (9 themes, localStorage persistence, live preview)
+- [x] Help overlay (keybinding reference)
+- [x] Loading states and error handling
+
+#### 4.3 Static HTML Fallback
+- [x] Archive, post pages, tag pages with terminal-inspired CSS
 - [x] Zero JavaScript requirement (for static pages)
-- [x] Proper semantic HTML for accessibility
 - [x] OpenGraph/Twitter meta tags
 
-#### 4.3 HTTP Server
-- [x] Route handling:
-  - `GET /` - Web terminal
-  - `GET /archive` - Post list (static HTML)
-  - `GET /posts/:slug` - Post page
-  - `GET /tags/:tag` - Tag listing
-  - `GET /feed.xml` - RSS feed
-  - `GET /feed.json` - JSON feed
-  - `GET /sitemap.xml` - Sitemap
-  - `GET /robots.txt` - Robots file
-  - `GET /ws` - WebSocket for terminal
-  - `GET /health` - Health check endpoint
-- [ ] Content negotiation (HTML vs JSON API)
-- [x] Static file serving (embedded)
-- [x] Gzip compression middleware
-- [x] Cache headers
+#### 4.4 HTTP Server
+- [x] Route handling: `/` (WASM app), `/api/*`, `/archive`, `/posts/:slug`, `/tags/:tag`, feeds, health
+- [x] Embedded WASM assets (`go:embed wasm_dist`)
+- [x] Gzip compression, cache headers
 
 ### Phase 5: Admin Interface ✅ COMPLETE
 
-#### 5.1 Admin TUI (via SSH)
-- [x] Authenticate via SSH key fingerprint whitelist
-- [x] Post management via TUI:
-  - [x] Create new post (opens $EDITOR)
-  - [x] Edit existing post
-  - [x] Delete post (with confirmation)
-  - [x] Publish/unpublish toggle
-  - [ ] Schedule post for future
-- [ ] Theme management via TUI
-- [ ] Settings via TUI
-- [ ] Simple analytics (view counts, popular posts)
-
-#### 5.2 CLI Management Tool
-- [x] `termblog new "Post Title"` - Create new post file
-- [x] `termblog publish <slug>` - Publish a draft
-- [x] `termblog unpublish <slug>` - Revert to draft
-- [x] `termblog delete <slug>` - Delete post (optional -r to remove file)
-- [x] `termblog list` - List all posts with status
-- [x] `termblog schedule <slug> <datetime>` - Schedule post for future
-- [x] `termblog sync` - Sync markdown files to database
-- [x] `termblog serve` - Start server (--ssh-only, --http-only flags)
-- [x] `termblog version` - Show version info (--full for commit/date)
-- [ ] `termblog import <hugo|jekyll|bearblog>` - Import from other platforms
+- [x] SSH key fingerprint authentication
+- [x] Post management via TUI (create, edit, delete, publish/unpublish)
+- [x] CLI management tool (new, publish, unpublish, delete, list, schedule, sync, serve, version)
 
 ### Phase 6: Advanced Features 🔶 PARTIAL
 
-#### 6.1 Content Features
-- [x] Code syntax highlighting (via Glamour/Chroma)
-- [ ] Image support:
-  - [ ] ASCII art conversion for terminal
-  - [ ] Normal images in web view
-- [ ] Post series/collections
-- [ ] Related posts suggestions
+- [x] Code syntax highlighting (Glamour/Chroma)
 - [x] Reading time estimates
 - [x] Table of contents generation
+- [x] View counter/analytics
+- [ ] Image support (ASCII art conversion)
+- [ ] Post series/collections
+- [ ] Import tool for Hugo/Jekyll migration
 
-#### 6.2 Engagement Features
-- [ ] Simple view counter
-- [ ] "Newsletter" via RSS (with instructions page)
-- [ ] Webmention support
-- [ ] Comment system (optional, maybe via GitHub issues)
+### Phase 7: Build & Deployment ✅ COMPLETE
 
-#### 6.3 Developer Experience
-- [x] Hot reload in development (file watcher)
-- [x] Docker image (multi-stage build)
-- [x] Docker Compose with Caddy example (commented)
-- [ ] Systemd service file
-- [ ] Ansible playbook for deployment
-- [x] GitHub Actions for CI/CD (release workflow)
-- [x] Health check endpoint (/health)
+- [x] Makefile with `build-wasm`, `build-all`, `clean-all` targets
+- [x] Multi-stage Dockerfile (Rust WASM build → Go build → Alpine)
+- [x] GitHub Actions release workflow (Rust toolchain + WASM build)
+- [x] Docker Compose with Caddy example
+- [x] Health check endpoint
 
-### Phase 7: Documentation & Polish 🔶 PARTIAL
+### Phase 8: Documentation & Polish 🔶 PARTIAL
 
-#### 7.1 User Documentation
-- [x] README with quick start
-- [x] Installation guide (binary, Docker, source)
-- [x] Configuration reference (docs/CONFIGURATION.md)
-- [x] Theme creation guide (docs/THEMES.md)
-- [x] Release process guide (docs/RELEASING.md)
-- [ ] Migration guides (from Hugo, Jekyll, etc.)
-
-#### 7.2 Final Polish
-- [x] Basic error handling
-- [ ] Security audit (SSH, input validation)
-- [ ] Performance optimization
-- [ ] Accessibility review (screen reader support in web)
-- [ ] Cross-terminal testing (iTerm, Alacritty, Windows Terminal, etc.)
+- [x] README with quick start and Rust build instructions
+- [x] Configuration reference, theme creation guide, release process
+- [ ] Migration guides (from Hugo, Jekyll)
+- [ ] Security audit
+- [ ] Cross-terminal testing
 
 ---
 
-## Milestones & Suggested Order
-
-### MVP (Minimum Viable Product) ✅ COMPLETE
-1. Phase 1.1-1.3: Core infrastructure
-2. Phase 2.1-2.2: Basic TUI reader
-3. Phase 3.1: SSH server
-4. Phase 1.2 (RSS part): RSS feed
-
-**MVP Deliverable**: SSH into your blog, browse posts, read them, get RSS feed.
-
-### Beta Release ✅ COMPLETE
-5. Phase 4.1-4.3: Web interface with xterm.js
-6. Phase 2.3: Visual polish
-7. Phase 5.3: CLI management tool
-
-**Beta Deliverable**: Full reader experience via SSH and web, basic content management.
-
-### 1.0 Release 🔶 IN PROGRESS
-8. Phase 5.1-5.2: Full admin interface (NOT STARTED)
-9. Phase 6.1-6.2: Advanced content features (PARTIAL)
-10. Phase 7: Documentation and polish (PARTIAL)
-
----
-
-## Current Project Status (as of 2026-02-05)
+## Current Project Status
 
 ### Completed Features
-- Full TUI reader with 8 built-in themes
+- Full TUI reader with 9 built-in themes (SSH via Bubbletea)
+- WASM web terminal via Ratzilla/Ratatui (client-side, zero latency)
+- JSON API for blog content
 - SSH server with rate limiting, MOTD, non-interactive commands
-- Web terminal with xterm.js, theme sync, reconnection
 - Static HTML pages (archive, posts, tags) with SEO tags
 - RSS/Atom/JSON feeds and sitemap
 - CLI tools: new, publish, unpublish, delete, list, schedule, sync, serve
 - Docker + Docker Compose support
 - GitHub Actions release workflow
 - File watcher for auto-sync
-- Theme persistence per SSH fingerprint
+- Theme persistence (SSH: fingerprint, Web: localStorage)
+- View counter/analytics
 
-### Remaining Work for 1.0
-
-**High Priority:**
-- [x] Admin TUI interface (create/edit/delete posts via SSH)
-- [ ] Import tool for Hugo/Jekyll migration
-- [x] View counter/analytics
+### Remaining Work
 
 **Medium Priority:**
-- [x] Full-text search (FTS5) instead of LIKE
-- [ ] Tag filtering in TUI
-- [x] Table of contents generation
-- [ ] RSS instructions page
+- [ ] Tag filtering in TUI (only via web /tags/:tag currently)
+- [ ] Import tool for Hugo/Jekyll migration
 
 **Low Priority/Nice-to-have:**
 - [ ] Image support (ASCII art conversion)
@@ -460,20 +282,11 @@ Alternatively, a web-based admin panel at `/admin` with a simple markdown editor
 
 | Phase | Complexity | Status |
 |-------|------------|--------|
-| Phase 1 | Medium | ✅ Complete |
-| Phase 2 | High | ✅ Complete |
-| Phase 3 | Low | ✅ Complete |
-| Phase 4 | Medium | ✅ Complete |
-| Phase 5 | Medium | 🔶 CLI done, TUI/Web admin not started |
-| Phase 6 | Variable | 🔶 Partial (syntax highlighting, reading time) |
-| Phase 7 | Low | 🔶 Partial (docs exist, polish remaining) |
-
----
-
-## Open Questions to Decide
-
-1. **Editor Integration**: Should admin TUI launch $EDITOR (vim/nano) or have built-in editing?
-2. **Analytics**: Simple view counts, or integrate with something like Plausible?
-3. **Comments**: Skip entirely, GitHub Issues integration, or custom?
-4. **Multi-user**: Single author blog or support multiple authors?
-5. **Custom Domain per Blog**: Single blog instance or multi-tenant?
+| Phase 1: Core Infrastructure | Medium | ✅ Complete |
+| Phase 2: TUI Reader | High | ✅ Complete |
+| Phase 3: SSH Server | Low | ✅ Complete |
+| Phase 4: Web Interface (WASM + API) | High | ✅ Complete |
+| Phase 5: Admin Interface | Medium | ✅ Complete |
+| Phase 6: Advanced Features | Variable | 🔶 Partial |
+| Phase 7: Build & Deployment | Medium | ✅ Complete |
+| Phase 8: Documentation & Polish | Low | 🔶 Partial |
