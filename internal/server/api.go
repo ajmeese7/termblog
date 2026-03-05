@@ -14,25 +14,27 @@ import (
 
 // APIPost is a post summary for list endpoints
 type APIPost struct {
-	Slug        string   `json:"slug"`
-	Title       string   `json:"title"`
-	Description string   `json:"description,omitempty"`
-	Author      string   `json:"author,omitempty"`
-	Tags        []string `json:"tags"`
-	PublishedAt string   `json:"published_at,omitempty"`
-	ReadingTime int      `json:"reading_time"`
+	Slug         string   `json:"slug"`
+	Title        string   `json:"title"`
+	Description  string   `json:"description,omitempty"`
+	Author       string   `json:"author,omitempty"`
+	Tags         []string `json:"tags"`
+	PublishedAt  string   `json:"published_at,omitempty"`
+	ReadingTime  int      `json:"reading_time"`
+	CanonicalURL string   `json:"canonical_url,omitempty"`
 }
 
 // APIPostDetail is a full post with markdown content
 type APIPostDetail struct {
-	Slug        string   `json:"slug"`
-	Title       string   `json:"title"`
-	Description string   `json:"description,omitempty"`
-	Author      string   `json:"author,omitempty"`
-	Content     string   `json:"content"`
-	Tags        []string `json:"tags"`
-	PublishedAt string   `json:"published_at,omitempty"`
-	ReadingTime int      `json:"reading_time"`
+	Slug         string   `json:"slug"`
+	Title        string   `json:"title"`
+	Description  string   `json:"description,omitempty"`
+	Author       string   `json:"author,omitempty"`
+	Content      string   `json:"content"`
+	Tags         []string `json:"tags"`
+	PublishedAt  string   `json:"published_at,omitempty"`
+	ReadingTime  int      `json:"reading_time"`
+	CanonicalURL string   `json:"canonical_url,omitempty"`
 }
 
 // APIPostList is a paginated list of posts
@@ -163,11 +165,12 @@ func (s *HTTPServer) handleAPIPosts(w http.ResponseWriter, r *http.Request) {
 		if p.PublishedAt != nil {
 			ap.PublishedAt = p.PublishedAt.Format("2006-01-02")
 		}
-		// Load full post for description and reading time
+		// Load full post for description, reading time, and canonical URL
 		if post, err := s.loader.LoadPost(p.Filepath); err == nil {
 			ap.Description = post.Description
 			ap.Author = post.Author
 			ap.ReadingTime = post.ReadingTime
+			ap.CanonicalURL = post.CanonicalURL
 		}
 		posts = append(posts, ap)
 	}
@@ -221,13 +224,14 @@ func (s *HTTPServer) handleAPIPostBySlug(w http.ResponseWriter, r *http.Request)
 	}
 
 	detail := APIPostDetail{
-		Slug:        post.Slug,
-		Title:       post.Title,
-		Description: post.Description,
-		Author:      post.Author,
-		Content:     post.Content,
-		Tags:        post.Tags,
-		ReadingTime: post.ReadingTime,
+		Slug:         post.Slug,
+		Title:        post.Title,
+		Description:  post.Description,
+		Author:       post.Author,
+		Content:      post.Content,
+		Tags:         post.Tags,
+		ReadingTime:  post.ReadingTime,
+		CanonicalURL: post.CanonicalURL,
 	}
 	if detail.Tags == nil {
 		detail.Tags = []string{}
@@ -286,6 +290,7 @@ func (s *HTTPServer) handleAPISearch(w http.ResponseWriter, r *http.Request) {
 			ap.Description = post.Description
 			ap.Author = post.Author
 			ap.ReadingTime = post.ReadingTime
+			ap.CanonicalURL = post.CanonicalURL
 		}
 		results = append(results, ap)
 	}
@@ -369,6 +374,7 @@ func (s *HTTPServer) handleAPITagPosts(w http.ResponseWriter, r *http.Request) {
 					ap.Description = post.Description
 					ap.Author = post.Author
 					ap.ReadingTime = post.ReadingTime
+					ap.CanonicalURL = post.CanonicalURL
 				}
 				posts = append(posts, ap)
 				break

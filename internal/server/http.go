@@ -173,16 +173,12 @@ func (s *HTTPServer) handleRSSFeed(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Convert storage posts to blog posts
+	// Load full posts
 	var blogPosts []*blog.Post
 	for _, p := range posts {
-		blogPosts = append(blogPosts, &blog.Post{
-			Slug:        p.Slug,
-			Title:       p.Title,
-			Tags:        p.Tags,
-			PublishedAt: p.PublishedAt,
-			CreatedAt:   p.CreatedAt,
-		})
+		if post, err := s.loader.LoadPost(p.Filepath); err == nil {
+			blogPosts = append(blogPosts, post)
+		}
 	}
 
 	rss, err := s.feed.GenerateRSS(blogPosts)
@@ -208,13 +204,9 @@ func (s *HTTPServer) handleJSONFeed(w http.ResponseWriter, r *http.Request) {
 
 	var blogPosts []*blog.Post
 	for _, p := range posts {
-		blogPosts = append(blogPosts, &blog.Post{
-			Slug:        p.Slug,
-			Title:       p.Title,
-			Tags:        p.Tags,
-			PublishedAt: p.PublishedAt,
-			CreatedAt:   p.CreatedAt,
-		})
+		if post, err := s.loader.LoadPost(p.Filepath); err == nil {
+			blogPosts = append(blogPosts, post)
+		}
 	}
 
 	jsonFeed, err := s.feed.GenerateJSON(blogPosts)
@@ -247,16 +239,12 @@ func (s *HTTPServer) handleSitemap(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Convert storage posts to blog posts
+	// Load full posts
 	var blogPosts []*blog.Post
 	for _, p := range posts {
-		blogPosts = append(blogPosts, &blog.Post{
-			Slug:        p.Slug,
-			Title:       p.Title,
-			Tags:        p.Tags,
-			PublishedAt: p.PublishedAt,
-			CreatedAt:   p.CreatedAt,
-		})
+		if post, err := s.loader.LoadPost(p.Filepath); err == nil {
+			blogPosts = append(blogPosts, post)
+		}
 	}
 
 	// Use feed's base URL for sitemap

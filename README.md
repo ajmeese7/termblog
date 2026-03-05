@@ -186,10 +186,24 @@ author: "Your Name"
 date: 2026-02-01
 tags: [go, terminal, blog]
 draft: false
+canonical_url: "https://example.com/original-post"
 ---
 
 Your content here...
 ```
+
+### Frontmatter Fields
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `title` | yes | Post title |
+| `description` | no | Short description for SEO and feeds |
+| `author` | no | Post author (defaults to blog author) |
+| `date` | yes | Creation date (`YYYY-MM-DD`) |
+| `tags` | no | List of tags |
+| `draft` | no | Set `true` to hide from readers (default `false`) |
+| `published_at` | no | Explicit publish date (defaults to `date`) |
+| `canonical_url` | no | Original URL for content migrated from another platform. Sets `<link rel="canonical">` to avoid duplicate content SEO penalties |
 
 ## Keybindings
 

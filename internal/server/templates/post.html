@@ -19,7 +19,7 @@
     <meta name="twitter:title" content="{{.Post.Title}}">
     <meta name="twitter:description" content="{{.Post.Description}}">
     <link rel="alternate" type="application/rss+xml" title="RSS Feed" href="/feed.xml">
-    <link rel="canonical" href="{{.BaseURL}}/posts/{{.Post.Slug}}">
+    <link rel="canonical" href="{{if .Post.CanonicalURL}}{{.Post.CanonicalURL}}{{else}}{{.BaseURL}}/posts/{{.Post.Slug}}{{end}}">
     <style>
         :root {
             --bg: {{.Theme.Background}};

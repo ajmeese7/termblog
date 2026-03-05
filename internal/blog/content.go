@@ -14,13 +14,14 @@ import (
 
 // Frontmatter represents the YAML frontmatter of a post
 type Frontmatter struct {
-	Title       string    `yaml:"title"`
-	Description string    `yaml:"description"`
-	Author      string    `yaml:"author"`
-	Tags        []string  `yaml:"tags"`
-	Draft       bool      `yaml:"draft"`
-	Date        string    `yaml:"date"`
-	PublishedAt string    `yaml:"published_at"`
+	Title        string   `yaml:"title"`
+	Description  string   `yaml:"description"`
+	Author       string   `yaml:"author"`
+	Tags         []string `yaml:"tags"`
+	Draft        bool     `yaml:"draft"`
+	Date         string   `yaml:"date"`
+	PublishedAt  string   `yaml:"published_at"`
+	CanonicalURL string   `yaml:"canonical_url"`
 }
 
 // ContentLoader loads and parses markdown content
@@ -61,15 +62,16 @@ func (l *ContentLoader) ParsePost(content string, filePath string) (*Post, error
 	}
 
 	post := &Post{
-		Slug:        slug,
-		Title:       frontmatter.Title,
-		Description: frontmatter.Description,
-		Author:      frontmatter.Author,
-		Content:     body,
-		Tags:        frontmatter.Tags,
-		Draft:       frontmatter.Draft,
-		Filepath:    filePath,
-		ReadingTime: readingTime,
+		Slug:         slug,
+		Title:        frontmatter.Title,
+		Description:  frontmatter.Description,
+		Author:       frontmatter.Author,
+		Content:      body,
+		Tags:         frontmatter.Tags,
+		Draft:        frontmatter.Draft,
+		Filepath:     filePath,
+		ReadingTime:  readingTime,
+		CanonicalURL: frontmatter.CanonicalURL,
 	}
 
 	// Parse dates

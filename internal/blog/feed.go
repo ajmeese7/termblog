@@ -77,9 +77,14 @@ func (g *FeedGenerator) createFeed(posts []*Post) *feeds.Feed {
 			author = g.author
 		}
 
+		link := fmt.Sprintf("%s/posts/%s", g.baseURL, post.Slug)
+		if post.CanonicalURL != "" {
+			link = post.CanonicalURL
+		}
+
 		item := &feeds.Item{
 			Title:       post.Title,
-			Link:        &feeds.Link{Href: fmt.Sprintf("%s/posts/%s", g.baseURL, post.Slug)},
+			Link:        &feeds.Link{Href: link},
 			Description: post.Description,
 			Author:      &feeds.Author{Name: author},
 			Created:     published,
