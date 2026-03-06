@@ -35,6 +35,7 @@ Thumbs.db
 # Build output
 dist/
 build/
+target/
 
 # WASM build artifacts
 web/dist/

@@ -23,4 +23,8 @@ features = [
     "HtmlElement",
     "Storage",
     "CssStyleDeclaration",
+    "History",
+    "Location",
+    "Navigator",
+    "Clipboard",
 ]

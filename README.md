@@ -220,6 +220,7 @@ Your content here...
 | `enter` / `l` | Select/Open post |
 | `esc` / `h` | Go back |
 | `/` | Search |
+| `y` | Copy post link to clipboard (web) |
 | `t` | Theme selector |
 | `?` | Toggle help |
 | `q` | Quit |

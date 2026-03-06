@@ -5,6 +5,7 @@ mod app;
 mod theme;
 #[allow(dead_code)]
 mod types;
+mod url;
 mod views;
 
 use std::io;

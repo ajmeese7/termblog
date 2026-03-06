@@ -14,6 +14,7 @@ use wasm_bindgen_futures::spawn_local;
 use crate::api;
 use crate::theme::{self, Theme};
 use crate::types::{PostDetail, PostSummary};
+use crate::url;
 use crate::views;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -71,6 +72,10 @@ pub struct AppState {
 
     // Pending async operations
     pub pending_slug: Option<String>,
+
+    // Flash message (transient status bar notification)
+    pub flash_message: Option<String>,
+    pub flash_tick: u64,
 }
 
 enum AsyncAction {
@@ -112,6 +117,8 @@ impl AppState {
             ascii_header: String::new(),
             blog_title: String::new(),
             pending_slug: None,
+            flash_message: None,
+            flash_tick: 0,
         }
     }
 
@@ -182,6 +189,24 @@ impl App {
                         s.loading = false;
                     }
                 }
+
+                // Deep link: if URL hash contains a post slug, navigate to it
+                if let Some(slug) = url::get_hash_slug() {
+                    let _ = api::record_view(&slug).await;
+                    match api::get_post(&slug).await {
+                        Ok(post) => {
+                            let mut s = state_clone.borrow_mut();
+                            s.current_post = Some(post);
+                            s.view = View::Reader;
+                            s.prev_view = View::List;
+                            s.scroll_offset = 0;
+                        }
+                        Err(_) => {
+                            // Invalid slug in hash — clear it and stay on list
+                            url::set_hash("/");
+                        }
+                    }
+                }
             });
         }
 
@@ -196,6 +221,11 @@ impl App {
                 let action = {
                     let mut s = state.borrow_mut();
                     s.tick += 1;
+
+                    // Clear flash message on any keypress after it was shown
+                    if s.flash_message.is_some() && s.tick > s.flash_tick {
+                        s.flash_message = None;
+                    }
 
                     // Capture the slug before handle_key mutates state
                     let prev_view = s.view.clone();
@@ -401,8 +431,7 @@ fn handle_list_key(state: &mut AppState, code: KeyCode, ctrl: bool, shift: bool)
                 state.scroll_offset = 0;
                 state.current_post = None; // will be loaded async
 
-                // We can't spawn_local here since we have &mut state
-                // Set a flag for the outer handler
+                url::set_hash(&format!("/posts/{}", slug));
                 load_post_async(slug, state);
             }
         }
@@ -447,6 +476,7 @@ fn handle_reader_key(state: &mut AppState, code: KeyCode, ctrl: bool) {
     match code {
         KeyCode::Esc | KeyCode::Char('h') | KeyCode::Backspace => {
             state.view = state.prev_view.clone();
+            url::set_hash("/");
             if state.view == View::Search {
                 // After search→reader cycle, the next reader ESC must not
                 // loop back to search. Set prev_view to List so:
@@ -503,6 +533,16 @@ fn handle_reader_key(state: &mut AppState, code: KeyCode, ctrl: bool) {
             state.view = View::ThemeSelector;
             state.theme_cursor = state.theme_index;
         }
+        KeyCode::Char('y') if !ctrl => {
+            if let Some(ref post) = state.current_post {
+                if let Some(origin) = url::get_origin() {
+                    let link = format!("{}/posts/{}", origin, post.slug);
+                    url::copy_to_clipboard(&link);
+                    state.flash_message = Some("Link copied!".into());
+                    state.flash_tick = state.tick;
+                }
+            }
+        }
         KeyCode::Char('?') => {
             state.overlay_return = View::Reader;
             state.view = View::Help;
@@ -545,6 +585,7 @@ fn handle_search_key(state: &mut AppState, code: KeyCode, ctrl: bool) {
                         state.view = View::Reader;
                         state.scroll_offset = 0;
                         state.current_post = None;
+                        url::set_hash(&format!("/posts/{}", slug));
                         load_post_async(slug, state);
                     }
                 }
@@ -673,6 +714,20 @@ fn render_footer(f: &mut Frame, area: Rect, state: &AppState) {
     let colors = &state.current_theme().colors;
     let bg = Style::default().bg(colors.background);
 
+    // Show flash message if active
+    if let Some(ref msg) = state.flash_message {
+        let flash = Paragraph::new(Line::from(Span::styled(
+            format!("  {}", msg),
+            Style::default()
+                .fg(colors.success)
+                .bg(colors.background)
+                .add_modifier(Modifier::BOLD),
+        )))
+        .style(bg);
+        f.render_widget(flash, area);
+        return;
+    }
+
     let sep = Span::styled(
         "  \u{2502}  ",
         Style::default().fg(colors.border).bg(colors.background),
@@ -693,6 +748,7 @@ fn render_footer(f: &mut Frame, area: Rect, state: &AppState) {
         View::Reader => vec![
             hint("esc", "back", colors),
             hint("?", "help", colors),
+            hint("y", "copy link", colors),
             hint("/", "search", colors),
             hint("t", "theme", colors),
         ],
@@ -775,6 +831,8 @@ mod tests {
             ascii_header: String::new(),
             blog_title: String::new(),
             pending_slug: None,
+            flash_message: None,
+            flash_tick: 0,
         }
     }
 

@@ -35,6 +35,7 @@ pub fn render(f: &mut Frame, area: Rect, state: &AppState) {
     help_line(&mut lines, "/", "Search posts", colors);
     help_line(&mut lines, "n", "Next page", colors);
     help_line(&mut lines, "p", "Previous page", colors);
+    help_line(&mut lines, "y", "Copy post link", colors);
     help_line(&mut lines, "t", "Cycle theme", colors);
     help_line(&mut lines, "?", "Toggle this help", colors);
     lines.push(Line::from(""));
