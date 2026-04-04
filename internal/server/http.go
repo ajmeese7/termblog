@@ -30,13 +30,13 @@ var staticFS embed.FS
 //go:embed wasm_dist
 var wasmFS embed.FS
 
-// HTTPServer handles HTTP requests and serves the WASM web app
+// Handles HTTP requests and serves the WASM web app
 type HTTPServer struct {
-	server *http.Server
-	repo   *storage.PostRepository
+	server   *http.Server
+	repo     *storage.PostRepository
 	viewRepo *storage.ViewRepository
-	loader *blog.ContentLoader
-	feed   *blog.FeedGenerator
+	loader   *blog.ContentLoader
+	feed     *blog.FeedGenerator
 
 	host            string
 	port            int
@@ -47,6 +47,9 @@ type HTTPServer struct {
 	theme           *theme.Theme
 	themeKey        string // lowercase key matching JS theme map (e.g. "dracula")
 
+	// Whether to trust X-Forwarded-For headers (only enable behind a reverse proxy)
+	trustProxy bool
+
 	// Cached templates (parsed once at startup)
 	templates map[string]*template.Template
 
@@ -55,7 +58,7 @@ type HTTPServer struct {
 	configETag string
 }
 
-// ThemeColors holds CSS-friendly theme colors for templates
+// Holds CSS-friendly theme colors for templates
 type ThemeColors struct {
 	Background string
 	Foreground string
@@ -64,7 +67,7 @@ type ThemeColors struct {
 	Border     string
 }
 
-// themeColors returns the theme colors for use in templates
+// Returns the theme colors for use in templates
 func (s *HTTPServer) themeColors() ThemeColors {
 	return ThemeColors{
 		Background: s.theme.Colors.Background,
@@ -75,8 +78,22 @@ func (s *HTTPServer) themeColors() ThemeColors {
 	}
 }
 
-// NewHTTPServer creates a new HTTP server
-func NewHTTPServer(host string, port int, repo *storage.PostRepository, viewRepo *storage.ViewRepository, loader *blog.ContentLoader, feed *blog.FeedGenerator, blogTitle string, blogDescription string, blogAuthor string, asciiHeader string, t *theme.Theme, themeKey string) (*HTTPServer, error) {
+// Creates a new HTTP server
+func NewHTTPServer(
+	host string,
+	port int,
+	repo *storage.PostRepository,
+	viewRepo *storage.ViewRepository,
+	loader *blog.ContentLoader,
+	feed *blog.FeedGenerator,
+	blogTitle string,
+	blogDescription string,
+	blogAuthor string,
+	asciiHeader string,
+	t *theme.Theme,
+	themeKey string,
+	trustProxy bool,
+) (*HTTPServer, error) {
 	// Parse and cache templates at startup for efficiency and early error detection
 	templates := make(map[string]*template.Template)
 	templateNames := []string{"archive.html", "post.html", "tag.html"}
@@ -107,6 +124,7 @@ func NewHTTPServer(host string, port int, repo *storage.PostRepository, viewRepo
 		asciiHeader:     asciiHeader,
 		theme:           t,
 		themeKey:        themeKey,
+		trustProxy:      trustProxy,
 		templates:       templates,
 	}
 
@@ -122,8 +140,9 @@ func NewHTTPServer(host string, port int, repo *storage.PostRepository, viewRepo
 	staticHandler := http.StripPrefix("/static/", http.FileServer(http.FS(staticSub)))
 	mux.Handle("/static/", cacheControlMiddleware(staticHandler, "public, max-age=31536000, immutable"))
 
-	// JSON API routes
-	s.registerAPIRoutes(mux)
+	// JSON API routes (rate-limited: 60 requests per minute per IP)
+	httpLimiter := NewRateLimiter(60, time.Minute)
+	s.registerAPIRoutes(mux, httpLimiter)
 
 	// WASM app at root
 	wasmSub, _ := fs.Sub(wasmFS, "wasm_dist")
@@ -150,21 +169,22 @@ func NewHTTPServer(host string, port int, repo *storage.PostRepository, viewRepo
 	mux.HandleFunc("/posts/", s.handlePost)
 	mux.HandleFunc("/tags/", s.handleTag)
 
-	// Wrap mux with gzip compression middleware
-	handler := GzipMiddleware(mux)
+	// Wrap mux with security headers and gzip compression middleware
+	handler := securityHeadersMiddleware(GzipMiddleware(mux))
 
 	s.server = &http.Server{
-		Addr:         fmt.Sprintf("%s:%d", host, port),
-		Handler:      handler,
-		ReadTimeout:  15 * time.Second,
-		WriteTimeout: 15 * time.Second,
-		IdleTimeout:  60 * time.Second,
+		MaxHeaderBytes: 1 << 20, // 1MB max header size
+		Addr:           fmt.Sprintf("%s:%d", host, port),
+		Handler:        handler,
+		ReadTimeout:    15 * time.Second,
+		WriteTimeout:   15 * time.Second,
+		IdleTimeout:    60 * time.Second,
 	}
 
 	return s, nil
 }
 
-// handleRSSFeed serves the RSS feed
+// Serves the RSS feed
 func (s *HTTPServer) handleRSSFeed(w http.ResponseWriter, r *http.Request) {
 	posts, err := s.repo.ListPublished(50, 0)
 	if err != nil {
@@ -193,7 +213,7 @@ func (s *HTTPServer) handleRSSFeed(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(rss))
 }
 
-// handleJSONFeed serves the JSON feed
+// Serves the JSON feed
 func (s *HTTPServer) handleJSONFeed(w http.ResponseWriter, r *http.Request) {
 	posts, err := s.repo.ListPublished(50, 0)
 	if err != nil {
@@ -221,7 +241,7 @@ func (s *HTTPServer) handleJSONFeed(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(jsonFeed))
 }
 
-// handleHealth serves a health check endpoint
+// Serves a health check endpoint
 func (s *HTTPServer) handleHealth(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{
@@ -230,7 +250,7 @@ func (s *HTTPServer) handleHealth(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// handleSitemap generates and serves an XML sitemap
+// Generates and serves an XML sitemap
 func (s *HTTPServer) handleSitemap(w http.ResponseWriter, r *http.Request) {
 	posts, err := s.repo.ListPublished(1000, 0)
 	if err != nil {
@@ -261,7 +281,7 @@ func (s *HTTPServer) handleSitemap(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(sitemap))
 }
 
-// handleRobots serves the robots.txt file
+// Serves the robots.txt file
 func (s *HTTPServer) handleRobots(w http.ResponseWriter, r *http.Request) {
 	baseURL := s.feed.BaseURL()
 	robots := fmt.Sprintf(`User-agent: *
@@ -275,7 +295,7 @@ Sitemap: %s/sitemap.xml
 	w.Write([]byte(robots))
 }
 
-// handleArchive serves the archive page with all posts
+// Serves the archive page with all posts
 func (s *HTTPServer) handleArchive(w http.ResponseWriter, r *http.Request) {
 	posts, err := s.repo.ListPublished(1000, 0)
 	if err != nil {
@@ -316,7 +336,7 @@ func (s *HTTPServer) handleArchive(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// handlePost serves individual post pages
+// Serves individual post pages
 func (s *HTTPServer) handlePost(w http.ResponseWriter, r *http.Request) {
 	// Handle /posts and /posts/ -> redirect to archive
 	if r.URL.Path == "/posts" || r.URL.Path == "/posts/" {
@@ -382,7 +402,7 @@ func (s *HTTPServer) handlePost(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// handleTag serves tag listing pages
+// Serves tag listing pages
 func (s *HTTPServer) handleTag(w http.ResponseWriter, r *http.Request) {
 	// Extract tag from URL path /tags/{tag} and normalize to lowercase
 	tag := strings.TrimPrefix(r.URL.Path, "/tags/")
@@ -445,7 +465,20 @@ func (s *HTTPServer) handleTag(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// cacheControlMiddleware wraps an http.Handler to add Cache-Control headers
+// Adds security headers to all HTTP responses
+func securityHeadersMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.Header().Set("X-Frame-Options", "DENY")
+		w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
+		w.Header().Set("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+		w.Header().Set("Content-Security-Policy",
+			"default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'")
+		next.ServeHTTP(w, r)
+	})
+}
+
+// Wraps an http.Handler to add Cache-Control headers
 func cacheControlMiddleware(next http.Handler, cacheControl string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", cacheControl)
@@ -453,7 +486,7 @@ func cacheControlMiddleware(next http.Handler, cacheControl string) http.Handler
 	})
 }
 
-// cacheConfigResponse pre-computes the /api/config JSON response and ETag.
+// Pre-computes the /api/config JSON response and ETag.
 // Config is static for the server's lifetime, so we compute it once at startup.
 func (s *HTTPServer) cacheConfigResponse() error {
 	themes := theme.DefaultThemes()
@@ -497,18 +530,18 @@ func (s *HTTPServer) cacheConfigResponse() error {
 	return nil
 }
 
-// Start starts the HTTP server
+// Starts the HTTP server
 func (s *HTTPServer) Start() error {
 	log.Printf("HTTP server starting on %s:%d", s.host, s.port)
 	return s.server.ListenAndServe()
 }
 
-// Shutdown gracefully shuts down the HTTP server
+// Gracefully shuts down the HTTP server
 func (s *HTTPServer) Shutdown(ctx context.Context) error {
 	return s.server.Shutdown(ctx)
 }
 
-// ListenAndServeWithSignal starts the server and handles shutdown signals
+// Starts the server and handles shutdown signals
 func (s *HTTPServer) ListenAndServeWithSignal() error {
 	done := make(chan os.Signal, 1)
 	signal.Notify(done, os.Interrupt, syscall.SIGTERM)

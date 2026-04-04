@@ -61,12 +61,12 @@ type APITag struct {
 
 // APIConfig exposes blog configuration to the WASM app
 type APIConfig struct {
-	Title       string          `json:"title"`
-	Description string          `json:"description"`
-	Author      string          `json:"author"`
-	Themes      []APIThemeInfo  `json:"themes"`
+	Title        string         `json:"title"`
+	Description  string         `json:"description"`
+	Author       string         `json:"author"`
+	Themes       []APIThemeInfo `json:"themes"`
 	DefaultTheme string         `json:"default_theme"`
-	ASCIIHeader string          `json:"ascii_header,omitempty"`
+	ASCIIHeader  string         `json:"ascii_header,omitempty"`
 }
 
 // APIThemeInfo describes a theme for the client
@@ -91,16 +91,19 @@ type APIThemeColors struct {
 	Border     string `json:"border"`
 }
 
-// corsMiddleware adds CORS headers for local development
-func corsMiddleware(next http.HandlerFunc) http.HandlerFunc {
+// Adds CORS headers
+func corsMiddleware(allowedOrigin string, next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+		// Set allowedOrigin to "" to disallow cross-origin requests (same-origin only)
+		if allowedOrigin != "" {
+			w.Header().Set("Access-Control-Allow-Origin", allowedOrigin)
+			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+			w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
 
-		if r.Method == http.MethodOptions {
-			w.WriteHeader(http.StatusNoContent)
-			return
+			if r.Method == http.MethodOptions {
+				w.WriteHeader(http.StatusNoContent)
+				return
+			}
 		}
 
 		next(w, r)
@@ -419,6 +422,9 @@ func (s *HTTPServer) handleAPIViews(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Limit request body size (this endpoint doesn't read a body, but guard against abuse)
+	r.Body = http.MaxBytesReader(w, r.Body, 1024)
+
 	slug := strings.TrimPrefix(r.URL.Path, "/api/views/")
 	slug = strings.TrimSuffix(slug, "/")
 	if slug == "" {
@@ -439,8 +445,13 @@ func (s *HTTPServer) handleAPIViews(w http.ResponseWriter, r *http.Request) {
 
 	// Hash the client IP for privacy
 	ip := r.RemoteAddr
-	if forwarded := r.Header.Get("X-Forwarded-For"); forwarded != "" {
-		ip = strings.Split(forwarded, ",")[0]
+	if s.trustProxy {
+		if forwarded := r.Header.Get("X-Forwarded-For"); forwarded != "" {
+			// Use the rightmost entry: the last proxy in the chain added it,
+			// so it's the most trustworthy. The leftmost is client-controlled.
+			parts := strings.Split(forwarded, ",")
+			ip = strings.TrimSpace(parts[len(parts)-1])
+		}
 	}
 	hash := fmt.Sprintf("%x", sha256.Sum256([]byte(ip)))
 
@@ -454,12 +465,26 @@ func (s *HTTPServer) handleAPIViews(w http.ResponseWriter, r *http.Request) {
 }
 
 // registerAPIRoutes registers all /api/* routes on the given mux
-func (s *HTTPServer) registerAPIRoutes(mux *http.ServeMux) {
-	mux.HandleFunc("/api/posts/", corsMiddleware(s.handleAPIPostBySlug))
-	mux.HandleFunc("/api/posts", corsMiddleware(s.handleAPIPosts))
-	mux.HandleFunc("/api/search", corsMiddleware(s.handleAPISearch))
-	mux.HandleFunc("/api/tags/", corsMiddleware(s.handleAPITagPosts))
-	mux.HandleFunc("/api/tags", corsMiddleware(s.handleAPITags))
-	mux.HandleFunc("/api/config", corsMiddleware(s.handleAPIConfig))
-	mux.HandleFunc("/api/views/", corsMiddleware(s.handleAPIViews))
+func (s *HTTPServer) registerAPIRoutes(mux *http.ServeMux, limiter *RateLimiter) {
+	// CORS: same-origin only (WASM app is served from the same host).
+	// The base URL is not used as an allowed origin because the frontend
+	// makes same-origin fetch calls that don't require CORS headers.
+	origin := ""
+
+	// rateLimited wraps a handler with CORS + per-IP HTTP rate limiting
+	rateLimited := func(h http.HandlerFunc) http.HandlerFunc {
+		withCORS := corsMiddleware(origin, h)
+		limited := HTTPRateLimitMiddleware(limiter, withCORS)
+		return func(w http.ResponseWriter, r *http.Request) {
+			limited.ServeHTTP(w, r)
+		}
+	}
+
+	mux.HandleFunc("/api/posts/", rateLimited(s.handleAPIPostBySlug))
+	mux.HandleFunc("/api/posts", rateLimited(s.handleAPIPosts))
+	mux.HandleFunc("/api/search", rateLimited(s.handleAPISearch))
+	mux.HandleFunc("/api/tags/", rateLimited(s.handleAPITagPosts))
+	mux.HandleFunc("/api/tags", rateLimited(s.handleAPITags))
+	mux.HandleFunc("/api/config", rateLimited(s.handleAPIConfig))
+	mux.HandleFunc("/api/views/", rateLimited(s.handleAPIViews))
 }

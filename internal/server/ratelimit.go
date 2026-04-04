@@ -3,6 +3,7 @@ package server
 import (
 	"log"
 	"net"
+	"net/http"
 	"sync"
 	"time"
 
@@ -10,7 +11,7 @@ import (
 	"github.com/charmbracelet/wish"
 )
 
-// RateLimiter tracks connection attempts per IP using a sliding window
+// Tracks connection attempts per IP using a sliding window
 type RateLimiter struct {
 	mu       sync.RWMutex
 	requests map[string][]time.Time
@@ -20,7 +21,7 @@ type RateLimiter struct {
 	stopOnce sync.Once
 }
 
-// NewRateLimiter creates a rate limiter with the given limit and time window
+// Creates a rate limiter with the given limit and time window
 func NewRateLimiter(limit int, window time.Duration) *RateLimiter {
 	rl := &RateLimiter{
 		requests: make(map[string][]time.Time),
@@ -35,7 +36,7 @@ func NewRateLimiter(limit int, window time.Duration) *RateLimiter {
 	return rl
 }
 
-// Stop stops the cleanup goroutine. Call this when shutting down.
+// Stops the cleanup goroutine. Call this when shutting down.
 // Safe to call multiple times.
 func (rl *RateLimiter) Stop() {
 	rl.stopOnce.Do(func() {
@@ -43,7 +44,7 @@ func (rl *RateLimiter) Stop() {
 	})
 }
 
-// Allow checks if a connection from the given IP should be allowed.
+// Checks if a connection from the given IP should be allowed.
 // Returns whether the request is allowed and the current request count for the IP.
 func (rl *RateLimiter) Allow(ip string) (allowed bool, count int) {
 	rl.mu.Lock()
@@ -71,7 +72,7 @@ func (rl *RateLimiter) Allow(ip string) (allowed bool, count int) {
 	return true, len(recent) + 1
 }
 
-// cleanup periodically removes old entries to prevent memory leaks
+// Periodically removes old entries to prevent memory leaks
 func (rl *RateLimiter) cleanup() {
 	ticker := time.NewTicker(time.Minute)
 	defer ticker.Stop()
@@ -103,7 +104,28 @@ func (rl *RateLimiter) cleanup() {
 	}
 }
 
-// RateLimitMiddleware creates a Wish middleware that enforces rate limits
+// Creates an HTTP middleware that enforces rate limits per IP
+func HTTPRateLimitMiddleware(limiter *RateLimiter, next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ip, _, err := net.SplitHostPort(r.RemoteAddr)
+		if err != nil {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		allowed, count := limiter.Allow(ip)
+		if !allowed {
+			log.Printf("Rate limited HTTP request from %s (%d requests in window, limit %d)", ip, count, limiter.limit)
+			w.Header().Set("Retry-After", "60")
+			http.Error(w, "Rate limit exceeded. Please try again later.", http.StatusTooManyRequests)
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	})
+}
+
+// Creates a Wish middleware that enforces rate limits
 func RateLimitMiddleware(limiter *RateLimiter) wish.Middleware {
 	return func(next ssh.Handler) ssh.Handler {
 		return func(sess ssh.Session) {

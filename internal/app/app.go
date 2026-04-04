@@ -39,6 +39,7 @@ type ServerConfig struct {
 	SSHPort     int             `yaml:"ssh_port"`
 	HTTPPort    int             `yaml:"http_port"`
 	HostKeyPath string          `yaml:"host_key_path"`
+	TrustProxy  bool            `yaml:"trust_proxy"`
 	RateLimit   RateLimitConfig `yaml:"rate_limit"`
 }
 

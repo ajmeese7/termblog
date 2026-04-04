@@ -35,6 +35,10 @@ server:
   # Path to SSH host key (auto-generated if missing)
   host_key_path: ".ssh/termblog_host_key"
 
+  # Trust X-Forwarded-For headers from reverse proxy (default: false)
+  # Only enable when running behind a trusted proxy (nginx, caddy, etc.)
+  # trust_proxy: true
+
   # Rate limiting for SSH connections
   rate_limit:
     # Maximum connections per IP within the window

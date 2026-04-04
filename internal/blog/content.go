@@ -12,7 +12,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// Frontmatter represents the YAML frontmatter of a post
+// Represents the YAML frontmatter of a post
 type Frontmatter struct {
 	Title        string   `yaml:"title"`
 	Description  string   `yaml:"description"`
@@ -24,18 +24,31 @@ type Frontmatter struct {
 	CanonicalURL string   `yaml:"canonical_url"`
 }
 
-// ContentLoader loads and parses markdown content
+// Loads and parses markdown content
 type ContentLoader struct {
 	contentDir string
 }
 
-// NewContentLoader creates a new ContentLoader
+// Creates a new ContentLoader
 func NewContentLoader(contentDir string) *ContentLoader {
 	return &ContentLoader{contentDir: contentDir}
 }
 
-// LoadPost loads a single post from a file path
+// Loads a single post from a file path.
+// The path must be within the configured content directory.
 func (l *ContentLoader) LoadPost(filePath string) (*Post, error) {
+	absPath, err := filepath.Abs(filePath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve path: %w", err)
+	}
+	absDir, err := filepath.Abs(l.contentDir)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve content dir: %w", err)
+	}
+	if !strings.HasPrefix(absPath, absDir+string(filepath.Separator)) {
+		return nil, fmt.Errorf("path outside content directory")
+	}
+
 	content, err := os.ReadFile(filePath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read file: %w", err)
@@ -44,7 +57,7 @@ func (l *ContentLoader) LoadPost(filePath string) (*Post, error) {
 	return l.ParsePost(string(content), filePath)
 }
 
-// ParsePost parses a markdown file with frontmatter
+// Parses a markdown file with frontmatter
 func (l *ContentLoader) ParsePost(content string, filePath string) (*Post, error) {
 	frontmatter, body, err := l.extractFrontmatter(content)
 	if err != nil {
@@ -102,7 +115,7 @@ func (l *ContentLoader) ParsePost(content string, filePath string) (*Post, error
 	return post, nil
 }
 
-// LoadBySlug loads a post by its slug
+// Loads a post by its slug
 func (l *ContentLoader) LoadBySlug(slug string) (*Post, error) {
 	posts, err := l.LoadAllPosts()
 	if err != nil {
@@ -118,7 +131,7 @@ func (l *ContentLoader) LoadBySlug(slug string) (*Post, error) {
 	return nil, nil
 }
 
-// LoadAllPosts loads all posts from the content directory
+// Loads all posts from the content directory
 func (l *ContentLoader) LoadAllPosts() ([]*Post, error) {
 	var posts []*Post
 
@@ -153,7 +166,7 @@ func (l *ContentLoader) LoadAllPosts() ([]*Post, error) {
 	return posts, nil
 }
 
-// extractFrontmatter separates YAML frontmatter from markdown content
+// Separates YAML frontmatter from markdown content
 func (l *ContentLoader) extractFrontmatter(content string) (*Frontmatter, string, error) {
 	scanner := bufio.NewScanner(strings.NewReader(content))
 
@@ -205,7 +218,7 @@ func (l *ContentLoader) extractFrontmatter(content string) (*Frontmatter, string
 	return &fm, body, nil
 }
 
-// slugFromFilename generates a URL slug from the filename
+// Generates a URL slug from the filename
 func (l *ContentLoader) slugFromFilename(filePath string) string {
 	base := filepath.Base(filePath)
 	slug := strings.TrimSuffix(base, filepath.Ext(base))
@@ -222,7 +235,7 @@ func (l *ContentLoader) slugFromFilename(filePath string) string {
 	return slug
 }
 
-// titleFromSlug converts a slug to a title
+// Converts a slug to a title
 func (l *ContentLoader) titleFromSlug(slug string) string {
 	words := strings.Split(slug, "-")
 	for i, word := range words {
@@ -233,7 +246,7 @@ func (l *ContentLoader) titleFromSlug(slug string) string {
 	return strings.Join(words, " ")
 }
 
-// CreatePost creates a new post file with frontmatter
+// Creates a new post file with frontmatter
 func (l *ContentLoader) CreatePost(title string, author string) (string, error) {
 	slug := l.titleToSlug(title)
 	date := time.Now().Format("2006-01-02")
@@ -269,7 +282,7 @@ Write your post content here...
 	return filePath, nil
 }
 
-// titleToSlug converts a title to a URL-safe slug
+// Converts a title to a URL-safe slug
 func (l *ContentLoader) titleToSlug(title string) string {
 	slug := strings.ToLower(title)
 	slug = strings.ReplaceAll(slug, " ", "-")

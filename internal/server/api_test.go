@@ -394,7 +394,8 @@ func TestAPICORSHeaders(t *testing.T) {
 	s, cleanup := setupTestAPI(t)
 	defer cleanup()
 
-	handler := corsMiddleware(s.handleAPIPosts)
+	// With an allowed origin, CORS headers should be set
+	handler := corsMiddleware("https://example.com", s.handleAPIPosts)
 	req := httptest.NewRequest(http.MethodOptions, "/api/posts", nil)
 	w := httptest.NewRecorder()
 	handler(w, req)
@@ -402,8 +403,18 @@ func TestAPICORSHeaders(t *testing.T) {
 	if w.Code != http.StatusNoContent {
 		t.Fatalf("expected 204 for OPTIONS, got %d", w.Code)
 	}
-	if w.Header().Get("Access-Control-Allow-Origin") != "*" {
+	if w.Header().Get("Access-Control-Allow-Origin") != "https://example.com" {
 		t.Error("missing CORS Allow-Origin header")
+	}
+
+	// With empty origin, no CORS headers should be set (same-origin only)
+	handler = corsMiddleware("", s.handleAPIPosts)
+	req = httptest.NewRequest(http.MethodOptions, "/api/posts", nil)
+	w = httptest.NewRecorder()
+	handler(w, req)
+
+	if w.Header().Get("Access-Control-Allow-Origin") != "" {
+		t.Error("CORS headers should not be set for empty origin")
 	}
 }
 
