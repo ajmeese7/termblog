@@ -1,7 +1,7 @@
 # Termblog Makefile
 
 # Version info
-VERSION ?= 0.6.1
+VERSION ?= 0.6.2
 COMMIT := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 DATE := $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
 
