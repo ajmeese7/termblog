@@ -63,3 +63,24 @@ admin:
 # Theme name: pipboy, dracula, nord, monokai, monochrome, amber, matrix, paper, terminal
 # Or path to custom theme YAML file
 theme: "dracula"
+
+# Browser tab favicon. Letter and emoji modes recolor live as visitors switch
+# themes; image mode serves a fixed icon you provide.
+favicon:
+  enabled: true
+
+  # mode: letter | emoji | image
+  mode: letter
+
+  # letter mode: single character drawn in the theme's accent color
+  letter: "T"
+
+  # emoji mode: any glyph; emoji_bg is "transparent" or "themed"
+  # mode: emoji
+  # emoji: "📝"
+  # emoji_bg: transparent
+
+  # image mode: local path (resolved relative to this config file) or http(s) URL
+  # mode: image
+  # image: "static/my-favicon.png"
+  # image: "https://example.com/favicon.ico"

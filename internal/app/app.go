@@ -1,8 +1,11 @@
 package app
 
 import (
+	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
@@ -14,6 +17,36 @@ type Config struct {
 	Storage StorageConfig `yaml:"storage"`
 	Admin   AdminConfig   `yaml:"admin"`
 	Theme   string        `yaml:"theme"`
+	Favicon FaviconConfig `yaml:"favicon"`
+}
+
+// Favicon modes
+const (
+	FaviconModeLetter = "letter"
+	FaviconModeEmoji  = "emoji"
+	FaviconModeImage  = "image"
+)
+
+// Emoji background modes
+const (
+	FaviconEmojiBgTransparent = "transparent"
+	FaviconEmojiBgThemed      = "themed"
+)
+
+// FaviconConfig controls dynamic favicon rendering. The feature ships enabled
+// by default in letter mode; set Enabled to false to fall back to the static
+// /static/favicon.ico (if present).
+type FaviconConfig struct {
+	Enabled bool   `yaml:"enabled"`
+	Mode    string `yaml:"mode"`     // "letter" | "emoji" | "image"
+	Letter  string `yaml:"letter"`   // single rune for letter mode
+	Emoji   string `yaml:"emoji"`    // glyph for emoji mode
+	EmojiBg string `yaml:"emoji_bg"` // "transparent" | "themed"
+	Image   string `yaml:"image"`    // local path or http(s):// URL for image mode
+
+	// ResolvedImagePath is the absolute path to the image file when Mode is
+	// "image" and Image is a local path. Set during validation; empty for URLs.
+	ResolvedImagePath string `yaml:"-"`
 }
 
 // AdminConfig holds admin authentication settings
@@ -77,7 +110,106 @@ func DefaultConfig() *Config {
 			DatabasePath: "termblog.db",
 		},
 		Theme: "pipboy",
+		Favicon: FaviconConfig{
+			Enabled: true,
+			Mode:    FaviconModeLetter,
+			Letter:  "T",
+			Emoji:   "📝",
+			EmojiBg: FaviconEmojiBgTransparent,
+		},
 	}
+}
+
+// allowedImageExts is the set of extensions accepted for local image-mode
+// favicons. Anything outside this set is rejected at config load time.
+var allowedImageExts = map[string]struct{}{
+	".svg":  {},
+	".png":  {},
+	".ico":  {},
+	".jpg":  {},
+	".jpeg": {},
+	".webp": {},
+	".gif":  {},
+}
+
+// validateAndResolveFavicon normalizes the favicon section and returns a
+// helpful error if the operator set something nonsensical. It mutates cfg in
+// place so downstream code can rely on resolved fields.
+//
+// configDir is used to resolve relative image paths.
+func validateAndResolveFavicon(cfg *FaviconConfig, configDir string) error {
+	if !cfg.Enabled {
+		return nil
+	}
+
+	switch cfg.Mode {
+	case "":
+		cfg.Mode = FaviconModeLetter
+	case FaviconModeLetter, FaviconModeEmoji, FaviconModeImage:
+	default:
+		return fmt.Errorf("favicon.mode %q invalid (want letter, emoji, or image)", cfg.Mode)
+	}
+
+	if cfg.Letter == "" {
+		cfg.Letter = "T"
+	}
+	if cfg.Emoji == "" {
+		cfg.Emoji = "📝"
+	}
+	switch cfg.EmojiBg {
+	case "":
+		cfg.EmojiBg = FaviconEmojiBgTransparent
+	case FaviconEmojiBgTransparent, FaviconEmojiBgThemed:
+	default:
+		return fmt.Errorf("favicon.emoji_bg %q invalid (want transparent or themed)", cfg.EmojiBg)
+	}
+
+	if cfg.Mode != FaviconModeImage {
+		return nil
+	}
+
+	if strings.TrimSpace(cfg.Image) == "" {
+		return fmt.Errorf("favicon.mode is image but favicon.image is empty")
+	}
+
+	// URL form: only http(s) is allowed. file://, data:, javascript:, etc. are
+	// rejected to avoid SSRF-flavored misconfigurations and surprises.
+	if strings.HasPrefix(cfg.Image, "http://") || strings.HasPrefix(cfg.Image, "https://") {
+		u, err := url.Parse(cfg.Image)
+		if err != nil {
+			return fmt.Errorf("favicon.image is not a valid URL: %w", err)
+		}
+		if u.Scheme != "http" && u.Scheme != "https" {
+			return fmt.Errorf("favicon.image scheme %q not allowed (want http or https)", u.Scheme)
+		}
+		if u.Host == "" {
+			return fmt.Errorf("favicon.image URL missing host")
+		}
+		return nil
+	}
+
+	// Local path form: resolve, verify, and lock down extension.
+	path := cfg.Image
+	if !filepath.IsAbs(path) {
+		path = filepath.Join(configDir, path)
+	}
+	clean := filepath.Clean(path)
+
+	info, err := os.Stat(clean)
+	if err != nil {
+		return fmt.Errorf("favicon.image %q not readable: %w", cfg.Image, err)
+	}
+	if info.IsDir() {
+		return fmt.Errorf("favicon.image %q is a directory", cfg.Image)
+	}
+
+	ext := strings.ToLower(filepath.Ext(clean))
+	if _, ok := allowedImageExts[ext]; !ok {
+		return fmt.Errorf("favicon.image extension %q not allowed", ext)
+	}
+
+	cfg.ResolvedImagePath = clean
+	return nil
 }
 
 // LoadConfig loads configuration from a YAML file
@@ -94,6 +226,11 @@ func LoadConfig(path string) (*Config, error) {
 
 	if err := yaml.Unmarshal(data, cfg); err != nil {
 		return nil, err
+	}
+
+	configDir := filepath.Dir(path)
+	if err := validateAndResolveFavicon(&cfg.Favicon, configDir); err != nil {
+		return nil, fmt.Errorf("invalid favicon config: %w", err)
 	}
 
 	return cfg, nil

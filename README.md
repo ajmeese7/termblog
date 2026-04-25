@@ -12,6 +12,7 @@ A self-hosted, terminal-based blogging platform. Read and write blog posts throu
 - **Vim-style Navigation** - `j/k`, `ctrl+d/u`, `gg/G`, and more
 - **Full-text Search** - SQLite FTS5 search across titles and content
 - **Theming** - 9 built-in themes (Pip-Boy, Dracula, Nord, Monokai, Monochrome, Amber, Matrix, Paper, Terminal) plus custom YAML themes
+- **Theme-aware Favicon** - Browser tab icon recolors live with the active theme; configurable as a letter, an emoji, or a custom image (local file or URL)
 - **Single Binary** - Go server with embedded WASM assets, no external runtime dependencies
 
 ## Architecture
@@ -155,24 +156,11 @@ Keep `termblog.com` proxied for HTTPS, and use `ssh.example.com` for SSH.
 
 Create a `config.yaml` in the project root:
 
-```yaml
-blog:
-  title: "My Blog"
-  description: "A terminal blog"
-  author: "Your Name"
-  base_url: "https://example.com"
-
-server:
-  ssh_port: 2222
-  http_port: 8080
-
-storage:
-  database: "termblog.db"
-  content_dir: "content/posts"
-
-theme:
-  name: "dracula"  # pipboy, dracula, nord, monokai, etc.
+```sh
+cp example.config.yaml config.yaml
 ```
+
+See [Configuration Reference](./docs/CONFIGURATION.md) for all options.
 
 ## Writing Posts
 

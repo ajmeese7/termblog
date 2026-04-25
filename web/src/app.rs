@@ -629,6 +629,7 @@ fn handle_theme_key(state: &mut AppState, code: KeyCode) {
                 // Update page background for live preview
                 let t = state.current_theme();
                 theme::set_page_background(&t.colors.background_hex);
+                theme::set_favicon_for_theme(&t.key);
             }
         }
         KeyCode::Char('k') | KeyCode::Up => {
@@ -637,12 +638,14 @@ fn handle_theme_key(state: &mut AppState, code: KeyCode) {
                 // Update page background for live preview
                 let t = state.current_theme();
                 theme::set_page_background(&t.colors.background_hex);
+                theme::set_favicon_for_theme(&t.key);
             }
         }
         KeyCode::Enter => {
             state.theme_index = state.theme_cursor;
             let t = state.current_theme();
             theme::set_page_background(&t.colors.background_hex);
+            theme::set_favicon_for_theme(&t.key);
             theme::save_theme(&t.key);
             state.view = state.overlay_return.clone();
         }
@@ -652,6 +655,7 @@ fn handle_theme_key(state: &mut AppState, code: KeyCode) {
             // Restore original theme's background
             let t = state.current_theme();
             theme::set_page_background(&t.colors.background_hex);
+            theme::set_favicon_for_theme(&t.key);
         }
         _ => {}
     }

@@ -19,6 +19,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/ajmeese7/termblog/internal/app"
 	"github.com/ajmeese7/termblog/internal/blog"
 	"github.com/ajmeese7/termblog/internal/storage"
 	"github.com/ajmeese7/termblog/internal/theme"
@@ -84,6 +85,21 @@ type HTTPServer struct {
 
 	// Cached WASM index.html bytes; CSP nonces are injected per request.
 	indexHTML []byte
+
+	// Favicon configuration and pre-rendered SVGs (one per theme key) for
+	// letter and emoji modes. Image mode populates faviconImageOrigin instead
+	// so the CSP middleware can allow the cross-origin fetch.
+	faviconCfg          app.FaviconConfig
+	faviconRendered     map[string]*faviconResource
+	faviconImageOrigin  string
+	faviconExtraImgSrc  string // pre-formatted addition to img-src CSP directive
+}
+
+// faviconResource caches the bytes of a generated SVG favicon along with its
+// ETag, so repeat requests skip the (already cheap) re-render.
+type faviconResource struct {
+	body []byte
+	etag string
 }
 
 // Holds CSS-friendly theme colors for templates
@@ -121,6 +137,7 @@ func NewHTTPServer(
 	t *theme.Theme,
 	themeKey string,
 	trustProxy bool,
+	faviconCfg app.FaviconConfig,
 ) (*HTTPServer, error) {
 	// Parse and cache templates at startup for efficiency and early error detection
 	templates := make(map[string]*template.Template)
@@ -154,6 +171,14 @@ func NewHTTPServer(
 		themeKey:        themeKey,
 		trustProxy:      trustProxy,
 		templates:       templates,
+		faviconCfg:      faviconCfg,
+	}
+
+	// Pre-render favicon SVGs for letter/emoji modes (cheap and gives us a
+	// stable ETag at boot). Image mode pulls bytes off disk per request via
+	// http.ServeFile, or redirects to the configured URL.
+	if err := s.prepareFavicon(); err != nil {
+		return nil, fmt.Errorf("failed to prepare favicon: %w", err)
 	}
 
 	// Pre-compute /api/config response and ETag (config is static for server lifetime)
@@ -162,12 +187,13 @@ func NewHTTPServer(
 	}
 
 	// Cache the WASM index.html bytes so we can inject a CSP nonce per request
-	// without re-reading the embedded FS each time.
+	// without re-reading the embedded FS each time. The favicon meta+link
+	// substitution happens once here so per-request handling stays cheap.
 	indexBytes, err := fs.ReadFile(wasmFS, "wasm_dist/index.html")
 	if err != nil {
 		return nil, fmt.Errorf("failed to read embedded index.html: %w", err)
 	}
-	s.indexHTML = indexBytes
+	s.indexHTML = injectFaviconHead(indexBytes, s.faviconCfg)
 
 	mux := http.NewServeMux()
 
@@ -201,6 +227,8 @@ func NewHTTPServer(
 		// Fall through to 404 for other paths
 		http.NotFound(w, r)
 	})
+	mux.HandleFunc("/favicon", s.handleFavicon)
+	mux.HandleFunc("/favicon.ico", s.handleFavicon)
 	mux.HandleFunc("/feed.xml", s.handleRSSFeed)
 	mux.HandleFunc("/feed.json", s.handleJSONFeed)
 	mux.HandleFunc("/sitemap.xml", s.handleSitemap)
@@ -211,7 +239,7 @@ func NewHTTPServer(
 	mux.HandleFunc("/tags/", s.handleTag)
 
 	// Wrap mux with security headers and gzip compression middleware
-	handler := securityHeadersMiddleware(GzipMiddleware(mux))
+	handler := s.securityHeadersMiddleware(GzipMiddleware(mux))
 
 	s.server = &http.Server{
 		MaxHeaderBytes: 1 << 20, // 1MB max header size
@@ -509,7 +537,12 @@ func (s *HTTPServer) handleTag(w http.ResponseWriter, r *http.Request) {
 // Adds security headers to all HTTP responses. A fresh CSP nonce is generated
 // per request and stashed in the request context so HTML handlers can mark
 // their inline <script> tags as authorized.
-func securityHeadersMiddleware(next http.Handler) http.Handler {
+//
+// When favicon.mode is "image" with an http(s) URL, the URL's origin is added
+// to img-src so the cross-origin favicon redirect actually loads.
+func (s *HTTPServer) securityHeadersMiddleware(next http.Handler) http.Handler {
+	imgSrc := "'self' data:" + s.faviconExtraImgSrc
+	csp := "default-src 'self'; script-src 'self' 'wasm-unsafe-eval' 'nonce-%s'; style-src 'self' 'unsafe-inline'; img-src " + imgSrc + "; connect-src 'self'; frame-ancestors 'none'"
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		nonce, err := generateCSPNonce()
 		if err != nil {
@@ -520,10 +553,7 @@ func securityHeadersMiddleware(next http.Handler) http.Handler {
 		w.Header().Set("X-Frame-Options", "DENY")
 		w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
 		w.Header().Set("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
-		w.Header().Set("Content-Security-Policy", fmt.Sprintf(
-			"default-src 'self'; script-src 'self' 'wasm-unsafe-eval' 'nonce-%s'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'",
-			nonce,
-		))
+		w.Header().Set("Content-Security-Policy", fmt.Sprintf(csp, nonce))
 		ctx := context.WithValue(r.Context(), cspNonceKey, nonce)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})

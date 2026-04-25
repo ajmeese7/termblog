@@ -121,6 +121,7 @@ colors:
 2. **Consistency** - Keep primary and text colors similar for visual harmony
 3. **Testing** - Test themes with actual content to check readability
 4. **Accessibility** - Consider colorblind-friendly palettes
+5. **Favicon contrast** - In letter mode the browser tab favicon uses `accent` on `background` (falling back to `primary` if accent is empty). If your theme has low accent/background contrast, the tab icon will be hard to read. See [Configuration: Favicon](./CONFIGURATION.md#favicon-section).
 
 ## Theme Persistence
 

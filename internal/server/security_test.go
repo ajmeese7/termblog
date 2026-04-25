@@ -11,7 +11,8 @@ import (
 
 func TestSecurityHeadersMiddlewareSetsCSPNonce(t *testing.T) {
 	var seenNonces []string
-	handler := securityHeadersMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	s := &HTTPServer{}
+	handler := s.securityHeadersMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		seenNonces = append(seenNonces, nonceFromContext(r.Context()))
 	}))
 

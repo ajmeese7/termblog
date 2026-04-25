@@ -233,6 +233,54 @@ pub fn set_page_background(hex: &str) {
     }
 }
 
+/// Update the favicon link to point at the server-rendered SVG for the given
+/// theme key. No-op when the page wasn't served with favicon support enabled,
+/// or when the configured mode is "image" (image-mode favicons are
+/// theme-agnostic and pointless to refetch).
+pub fn set_favicon_for_theme(key: &str) {
+    let Some(window) = web_sys::window() else { return };
+    let Some(document) = window.document() else { return };
+
+    // Read the mode hint the server injected into <head>. If it's missing or
+    // the empty string, the feature is disabled and we don't touch the link.
+    let mode = document
+        .query_selector(r#"meta[name="termblog-favicon-mode"]"#)
+        .ok()
+        .flatten()
+        .and_then(|el| el.get_attribute("content"))
+        .unwrap_or_default();
+    if mode != "letter" && mode != "emoji" {
+        return;
+    }
+
+    let Some(link) = document
+        .query_selector(r#"link[rel="icon"]"#)
+        .ok()
+        .flatten()
+    else {
+        return;
+    };
+
+    let href = format!("/favicon?theme={}", urlencode(key));
+    let _ = link.set_attribute("href", &href);
+}
+
+/// Minimal URL-component encoder for theme keys. The keys we ship are all
+/// `[a-z]+`, but encoding is cheap insurance against future themes with
+/// awkward characters.
+fn urlencode(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    for b in s.as_bytes() {
+        match b {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
+                out.push(*b as char);
+            }
+            _ => out.push_str(&format!("%{:02X}", b)),
+        }
+    }
+    out
+}
+
 /// Save theme key to localStorage
 pub fn save_theme(key: &str) {
     if let Some(window) = web_sys::window() {

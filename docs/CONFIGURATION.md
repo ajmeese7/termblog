@@ -26,6 +26,14 @@ storage:
   database_path: "termblog.db"
 
 theme: "pipboy"  # Theme name or path to custom theme YAML
+
+favicon:
+  enabled: true
+  mode: letter      # letter | emoji | image
+  letter: "T"
+  emoji: "📝"
+  emoji_bg: transparent  # transparent | themed
+  # image: "static/logo.png"  # only when mode is "image"
 ```
 
 ## Configuration Options
@@ -63,6 +71,65 @@ theme: "pipboy"  # Theme name or path to custom theme YAML
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | `theme` | string | "pipboy" | Theme name or path to custom theme file |
+
+### Favicon Section
+
+The browser tab favicon. Letter and emoji modes recolor live as visitors switch themes; image mode serves a fixed icon. The feature ships enabled in letter mode by default; set `enabled: false` to opt out (the server then 404s `/favicon` and the browser shows nothing).
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `favicon.enabled` | bool | `true` | Master switch. When false, no favicon is served. |
+| `favicon.mode` | string | `"letter"` | One of `letter`, `emoji`, `image`. |
+| `favicon.letter` | string | `"T"` | Single character drawn in the active theme's accent color (only the first rune is used). |
+| `favicon.emoji` | string | `"📝"` | Glyph used in emoji mode. Any Unicode character. |
+| `favicon.emoji_bg` | string | `"transparent"` | One of `transparent` (no background tile) or `themed` (filled with the active theme's background). |
+| `favicon.image` | string | - | Required when `mode: image`. Either a local path (resolved relative to `config.yaml`) or an `http://` / `https://` URL. |
+
+#### Letter mode
+
+```yaml
+favicon:
+  enabled: true
+  mode: letter
+  letter: "B"   # uses the first rune; defaults to "T"
+```
+
+The server emits a 32×32 SVG with the theme's background as the tile and the theme's accent (or primary, if accent is empty) as the letter color. The icon updates live whenever the user switches themes.
+
+#### Emoji mode
+
+```yaml
+favicon:
+  enabled: true
+  mode: emoji
+  emoji: "🦀"
+  emoji_bg: transparent   # or "themed"
+```
+
+Renders the emoji glyph in the tab. With `emoji_bg: transparent` the browser's tab background shows through; with `themed` the SVG fills the tile with the active theme's background color (matches the look of letter mode).
+
+#### Image mode
+
+```yaml
+# Local file (resolved relative to config.yaml)
+favicon:
+  enabled: true
+  mode: image
+  image: "static/my-favicon.png"
+
+# Remote URL
+favicon:
+  enabled: true
+  mode: image
+  image: "https://cdn.example.com/favicon.ico"
+```
+
+Image mode is intentionally theme-agnostic: the icon stays fixed regardless of which theme the visitor selects.
+
+- **Local path**: the file is read off disk and served with the appropriate `Content-Type`. Allowed extensions: `.svg`, `.png`, `.ico`, `.jpg`, `.jpeg`, `.webp`, `.gif`. Validated at startup.
+- **URL**: the server emits a `302` redirect to the URL. The URL's origin is automatically appended to the page's `Content-Security-Policy` `img-src` directive so the cross-origin fetch is allowed.
+
+Configuration errors (missing file, disallowed extension, non-`http(s)` scheme) are reported at startup so the server fails fast.
 
 ## Available Themes
 

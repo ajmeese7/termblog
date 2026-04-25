@@ -308,6 +308,7 @@ func runServe(sshOnly, httpOnly bool) error {
 			t,
 			cfg.Theme,
 			cfg.Server.TrustProxy,
+			cfg.Favicon,
 		)
 		if err != nil {
 			return fmt.Errorf("failed to create HTTP server: %w", err)
