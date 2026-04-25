@@ -122,7 +122,7 @@ The repo includes a service file at `deploy/termblog.service`.
 ```bash
 sudo install -m 0644 deploy/termblog.service /etc/systemd/system/termblog.service
 sudo systemctl daemon-reload
-sudo systemctl enable --now termblog
+sudo systemctl enable termblog && sudo systemctl restart termblog
 sudo systemctl status termblog
 ```
 
