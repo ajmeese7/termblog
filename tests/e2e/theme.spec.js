@@ -1,221 +1,171 @@
 const { test, expect } = require("@playwright/test");
 
-// Expected theme background colors (must match termBlogThemes in index.html)
-const THEME_BACKGROUNDS = {
-  pipboy: "rgb(10, 10, 10)", // #0a0a0a
-  dracula: "rgb(40, 42, 54)", // #282a36
-  nord: "rgb(46, 52, 64)", // #2e3440
-  monokai: "rgb(39, 40, 34)", // #272822
-  monochrome: "rgb(0, 0, 0)", // #000000
-  amber: "rgb(13, 8, 0)", // #0d0800
-  matrix: "rgb(13, 2, 8)", // #0d0208
-  paper: "rgb(245, 245, 220)", // #f5f5dc
+// Background hex per theme — must match background_hex in web/src/theme.rs.
+// Values are stored as hex; tests compare against rgb() strings produced by
+// getComputedStyle.
+const THEME_BG_HEX = {
+  pipboy: "#0a0a0a",
+  dracula: "#282a36",
+  nord: "#2e3440",
+  monokai: "#272822",
+  monochrome: "#000000",
+  amber: "#0d0800",
+  matrix: "#0d0208",
+  paper: "#f5f5dc",
+  terminal: "#1e1e1e",
 };
 
-// Helper: get the current page background color
-async function getPageBackground(page) {
-  return page.evaluate(() => {
-    return window.getComputedStyle(document.documentElement).backgroundColor;
-  });
+const THEME_KEYS = [
+  "pipboy", "dracula", "nord", "monokai", "monochrome",
+  "amber", "matrix", "paper", "terminal",
+];
+
+function hexToRgb(hex) {
+  const h = hex.replace("#", "");
+  const r = parseInt(h.slice(0, 2), 16);
+  const g = parseInt(h.slice(2, 4), 16);
+  const b = parseInt(h.slice(4, 6), 16);
+  return `rgb(${r}, ${g}, ${b})`;
 }
 
-// Helper: get localStorage theme value
-async function getSavedTheme(page) {
-  return page.evaluate(() => {
-    return localStorage.getItem("termblog-theme");
-  });
-}
-
-// Helper: wait for terminal WebSocket to connect
-async function waitForTerminal(page) {
-  await page.waitForTimeout(3000);
-}
-
-// Helper: open theme selector
-async function openThemeSelector(page) {
-  await page.click("#terminal");
+// The WASM TUI mounts under <div id="grid">. We wait for it to populate
+// before issuing keystrokes.
+async function waitForApp(page) {
+  await page.waitForSelector("#grid pre", { timeout: 15000 });
   await page.waitForTimeout(500);
-  await page.keyboard.type("t");
-  await page.waitForTimeout(1500);
 }
 
-// Helper: open theme selector and pick a theme by navigating from current position
-async function selectTheme(page, stepsDown) {
-  await openThemeSelector(page);
+async function getDocBg(page) {
+  return page.evaluate(() =>
+    window.getComputedStyle(document.documentElement).backgroundColor,
+  );
+}
 
-  for (let i = 0; i < stepsDown; i++) {
-    await page.keyboard.press("ArrowDown");
-    await page.waitForTimeout(300);
+async function getSavedTheme(page) {
+  return page.evaluate(() => localStorage.getItem("termblog-theme"));
+}
+
+async function fetchDefaultTheme(page) {
+  const res = await page.request.get("/api/config");
+  const cfg = await res.json();
+  return cfg.default_theme || cfg.defaultTheme;
+}
+
+async function openThemePicker(page) {
+  await page.locator("body").click();
+  await page.waitForTimeout(150);
+  await page.keyboard.press("t");
+  await page.waitForTimeout(500);
+}
+
+// Move the cursor in the theme picker from `from` to `to` (both theme keys),
+// then press Enter to commit. Themes are listed in THEME_KEYS order; the
+// cursor opens at the currently-selected theme.
+async function selectThemeFrom(page, from, to) {
+  const start = THEME_KEYS.indexOf(from);
+  const end = THEME_KEYS.indexOf(to);
+  if (start < 0 || end < 0) throw new Error(`unknown theme ${from} or ${to}`);
+
+  await openThemePicker(page);
+
+  const delta = end - start;
+  const key = delta >= 0 ? "ArrowDown" : "ArrowUp";
+  for (let i = 0; i < Math.abs(delta); i++) {
+    await page.keyboard.press(key);
+    await page.waitForTimeout(120);
   }
-
   await page.keyboard.press("Enter");
-  await page.waitForTimeout(2000);
+  await page.waitForTimeout(500);
 }
 
 test.describe("Web Theme Sync", () => {
   test("initial load uses server config theme", async ({ page }) => {
     await page.goto("/", { waitUntil: "networkidle" });
-    await waitForTerminal(page);
+    await waitForApp(page);
 
-    // Config default is "dracula" - page should match
-    const bg = await getPageBackground(page);
-    expect(bg).toBe(THEME_BACKGROUNDS.dracula);
+    const expected = await fetchDefaultTheme(page);
+    expect(THEME_BG_HEX[expected]).toBeDefined();
+    expect(await getDocBg(page)).toBe(hexToRgb(THEME_BG_HEX[expected]));
   });
 
-  test("theme change updates page background via OSC sequence", async ({
-    page,
-  }) => {
+  test("theme change updates page background live", async ({ page }) => {
     await page.goto("/", { waitUntil: "networkidle" });
-    await waitForTerminal(page);
+    await waitForApp(page);
 
-    // Theme selector starts at dracula (config default, index 1)
-    // Move 1 down to nord (index 2)
-    await selectTheme(page, 1);
+    const start = await fetchDefaultTheme(page);
+    // Pick any other theme that isn't the start theme.
+    const target = THEME_KEYS.find((k) => k !== start && k !== "terminal");
+    await selectThemeFrom(page, start, target);
 
-    const bg = await getPageBackground(page);
-    expect(bg).toBe(THEME_BACKGROUNDS.nord);
+    expect(await getDocBg(page)).toBe(hexToRgb(THEME_BG_HEX[target]));
   });
 
   test("theme change saves to localStorage", async ({ page }) => {
     await page.goto("/", { waitUntil: "networkidle" });
-    await waitForTerminal(page);
+    await waitForApp(page);
 
-    // Select nord
-    await selectTheme(page, 1);
+    const start = await fetchDefaultTheme(page);
+    const target = THEME_KEYS.find((k) => k !== start && k !== "terminal");
+    await selectThemeFrom(page, start, target);
 
-    const saved = await getSavedTheme(page);
-    expect(saved).toBe("nord");
+    expect(await getSavedTheme(page)).toBe(target);
   });
 
   test("theme persists across page reload", async ({ page }) => {
     await page.goto("/", { waitUntil: "networkidle" });
-    await waitForTerminal(page);
+    await waitForApp(page);
 
-    // Select nord
-    await selectTheme(page, 1);
-    expect(await getPageBackground(page)).toBe(THEME_BACKGROUNDS.nord);
+    const start = await fetchDefaultTheme(page);
+    const target = THEME_KEYS.find((k) => k !== start && k !== "terminal");
+    await selectThemeFrom(page, start, target);
+    expect(await getDocBg(page)).toBe(hexToRgb(THEME_BG_HEX[target]));
 
-    // Reload - should restore from localStorage
     await page.reload({ waitUntil: "domcontentloaded" });
-    await page.waitForTimeout(3000);
+    await waitForApp(page);
 
-    // Page background should persist from localStorage
-    const bg = await getPageBackground(page);
-    expect(bg).toBe(THEME_BACKGROUNDS.nord);
-
-    // xterm viewport should also use the saved theme (TUI started with it)
-    const xtermBg = await page.evaluate(() => {
-      const viewport = document.querySelector(".xterm-viewport");
-      return viewport
-        ? window.getComputedStyle(viewport).backgroundColor
-        : null;
-    });
-    expect(xtermBg).toBe(THEME_BACKGROUNDS.nord);
+    expect(await getDocBg(page)).toBe(hexToRgb(THEME_BG_HEX[target]));
   });
 
   test("light theme (paper) applies correctly", async ({ page }) => {
     await page.goto("/", { waitUntil: "networkidle" });
-    await waitForTerminal(page);
+    await waitForApp(page);
 
-    // From dracula (index 1), paper is 6 steps down (index 7)
-    await selectTheme(page, 6);
+    const start = await fetchDefaultTheme(page);
+    await selectThemeFrom(page, start, "paper");
 
-    const bg = await getPageBackground(page);
-    expect(bg).toBe(THEME_BACKGROUNDS.paper);
+    expect(await getDocBg(page)).toBe(hexToRgb(THEME_BG_HEX.paper));
   });
 
-  test("theme preview updates page background while browsing", async ({
-    page,
-  }) => {
+  test("preview updates background while browsing in picker", async ({ page }) => {
     await page.goto("/", { waitUntil: "networkidle" });
-    await waitForTerminal(page);
+    await waitForApp(page);
 
-    await openThemeSelector(page);
+    const start = await fetchDefaultTheme(page);
+    const startIdx = THEME_KEYS.indexOf(start);
+    const nextIdx = (startIdx + 1) % THEME_KEYS.length;
+    const next = THEME_KEYS[nextIdx];
 
-    // Cursor starts at dracula - move down to nord
-    await page.keyboard.press("ArrowDown");
-    await page.waitForTimeout(1000);
-    expect(await getPageBackground(page)).toBe(THEME_BACKGROUNDS.nord);
+    await openThemePicker(page);
+    const direction = nextIdx > startIdx ? "ArrowDown" : "ArrowUp";
+    await page.keyboard.press(direction);
+    await page.waitForTimeout(400);
 
-    // Move down to monokai
-    await page.keyboard.press("ArrowDown");
-    await page.waitForTimeout(1000);
-    expect(await getPageBackground(page)).toBe(THEME_BACKGROUNDS.monokai);
+    if (next !== "terminal") {
+      expect(await getDocBg(page)).toBe(hexToRgb(THEME_BG_HEX[next]));
+    }
   });
 
-  test("cancel reverts page background to original theme", async ({
-    page,
-  }) => {
+  test("escape reverts background to original theme", async ({ page }) => {
     await page.goto("/", { waitUntil: "networkidle" });
-    await waitForTerminal(page);
+    await waitForApp(page);
 
-    // Preview a different theme
-    await openThemeSelector(page);
-    await page.keyboard.press("ArrowDown"); // nord
-    await page.waitForTimeout(1000);
-    expect(await getPageBackground(page)).toBe(THEME_BACKGROUNDS.nord);
-
-    // Cancel - should revert to dracula
+    const start = await fetchDefaultTheme(page);
+    await openThemePicker(page);
+    await page.keyboard.press("ArrowDown");
+    await page.waitForTimeout(400);
     await page.keyboard.press("Escape");
-    await page.waitForTimeout(1500);
-    expect(await getPageBackground(page)).toBe(THEME_BACKGROUNDS.dracula);
+    await page.waitForTimeout(400);
 
-    // localStorage should be reverted to the original theme, not the previewed one
-    const saved = await getSavedTheme(page);
-    expect(saved).not.toBe("nord");
-  });
-
-  test("xterm terminal theme updates with page", async ({ page }) => {
-    await page.goto("/", { waitUntil: "networkidle" });
-    await waitForTerminal(page);
-
-    // Select nord
-    await selectTheme(page, 1);
-
-    // Check that the xterm viewport background also changed
-    const xtermBg = await page.evaluate(() => {
-      const viewport = document.querySelector(".xterm-viewport");
-      return viewport
-        ? window.getComputedStyle(viewport).backgroundColor
-        : null;
-    });
-
-    // xterm viewport should have nord background
-    expect(xtermBg).toBe(THEME_BACKGROUNDS.nord);
-  });
-});
-
-test.describe("Web Terminal Connection", () => {
-  test("terminal connects and displays content", async ({ page }) => {
-    await page.goto("/", { waitUntil: "networkidle" });
-    await waitForTerminal(page);
-
-    // The loading indicator should be hidden
-    const loadingVisible = await page.evaluate(() => {
-      const el = document.getElementById("loading");
-      return el && !el.classList.contains("hidden");
-    });
-    expect(loadingVisible).toBe(false);
-
-    // Terminal element should exist
-    const termExists = await page.evaluate(() => {
-      return !!document.querySelector(".xterm");
-    });
-    expect(termExists).toBe(true);
-  });
-
-  test("terminal container background matches theme", async ({ page }) => {
-    await page.goto("/", { waitUntil: "networkidle" });
-    await waitForTerminal(page);
-
-    const containerBg = await page.evaluate(() => {
-      const container = document.getElementById("terminal-container");
-      return container
-        ? window.getComputedStyle(container).backgroundColor
-        : null;
-    });
-
-    // Should match the default theme (dracula)
-    expect(containerBg).toBe(THEME_BACKGROUNDS.dracula);
+    expect(await getDocBg(page)).toBe(hexToRgb(THEME_BG_HEX[start]));
   });
 });

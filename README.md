@@ -225,17 +225,24 @@ make test
 
 ### End-to-End Browser Tests
 
-Playwright tests verify the web terminal, theme switching, and localStorage persistence:
+Playwright tests cover theme switching, persistence, and the theme-aware favicon. The suite assumes a server running on `http://localhost:8080`.
 
 ```bash
 # Install dependencies (first time only)
 pushd tests/e2e && npm install && npx playwright install chromium && popd
 
-# Start the server
-make build-all && ./termblog serve &
-
-# Run e2e tests
+# Build, start the server in the background, run tests, then stop it
+make build-all
+./termblog serve &
+SERVER_PID=$!
 make test-e2e
+kill $SERVER_PID
+```
+
+If a previous run leaked a server process, free port 8080 with:
+
+```bash
+pkill -f './termblog serve' || lsof -ti:8080 | xargs -r kill
 ```
 
 ## Development
