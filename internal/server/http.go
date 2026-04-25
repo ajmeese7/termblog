@@ -1,9 +1,12 @@
 package server
 
 import (
+	"bytes"
 	"context"
+	"crypto/rand"
 	"crypto/sha256"
 	"embed"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"html/template"
@@ -20,6 +23,28 @@ import (
 	"github.com/ajmeese7/termblog/internal/storage"
 	"github.com/ajmeese7/termblog/internal/theme"
 )
+
+type ctxKey int
+
+const cspNonceKey ctxKey = iota
+
+// Generates a fresh CSP nonce. 16 random bytes is plenty for a per-request nonce.
+func generateCSPNonce() (string, error) {
+	b := make([]byte, 16)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	return base64.StdEncoding.EncodeToString(b), nil
+}
+
+// Returns the per-request CSP nonce, or an empty string if the context lacks one
+// (e.g. test paths that bypass the middleware).
+func nonceFromContext(ctx context.Context) string {
+	if v, ok := ctx.Value(cspNonceKey).(string); ok {
+		return v
+	}
+	return ""
+}
 
 //go:embed templates/*
 var templatesFS embed.FS
@@ -56,6 +81,9 @@ type HTTPServer struct {
 	// Cached /api/config response (static for server lifetime)
 	configJSON []byte
 	configETag string
+
+	// Cached WASM index.html bytes; CSP nonces are injected per request.
+	indexHTML []byte
 }
 
 // Holds CSS-friendly theme colors for templates
@@ -133,6 +161,14 @@ func NewHTTPServer(
 		return nil, fmt.Errorf("failed to cache config response: %w", err)
 	}
 
+	// Cache the WASM index.html bytes so we can inject a CSP nonce per request
+	// without re-reading the embedded FS each time.
+	indexBytes, err := fs.ReadFile(wasmFS, "wasm_dist/index.html")
+	if err != nil {
+		return nil, fmt.Errorf("failed to read embedded index.html: %w", err)
+	}
+	s.indexHTML = indexBytes
+
 	mux := http.NewServeMux()
 
 	// Static files with long cache (immutable embedded assets)
@@ -148,9 +184,14 @@ func NewHTTPServer(
 	wasmSub, _ := fs.Sub(wasmFS, "wasm_dist")
 	wasmHandler := http.FileServer(http.FS(wasmSub))
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		// Serve WASM assets for root and WASM-related files
-		if r.URL.Path == "/" || strings.HasSuffix(r.URL.Path, ".wasm") || strings.HasSuffix(r.URL.Path, ".js") {
-			// Set correct MIME types for WASM
+		// Serve the index with a freshly-injected CSP nonce so trunk's inline
+		// loader and the theme-prefetch script can run under a strict CSP.
+		if r.URL.Path == "/" || r.URL.Path == "/index.html" {
+			s.handleIndex(w, r)
+			return
+		}
+		// Static WASM assets (hashed filenames) can be served straight from the FS.
+		if strings.HasSuffix(r.URL.Path, ".wasm") || strings.HasSuffix(r.URL.Path, ".js") {
 			if strings.HasSuffix(r.URL.Path, ".wasm") {
 				w.Header().Set("Content-Type", "application/wasm")
 			}
@@ -465,17 +506,41 @@ func (s *HTTPServer) handleTag(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// Adds security headers to all HTTP responses
+// Adds security headers to all HTTP responses. A fresh CSP nonce is generated
+// per request and stashed in the request context so HTML handlers can mark
+// their inline <script> tags as authorized.
 func securityHeadersMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		nonce, err := generateCSPNonce()
+		if err != nil {
+			http.Error(w, "internal server error", http.StatusInternalServerError)
+			return
+		}
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("X-Frame-Options", "DENY")
 		w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
 		w.Header().Set("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
-		w.Header().Set("Content-Security-Policy",
-			"default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'")
-		next.ServeHTTP(w, r)
+		w.Header().Set("Content-Security-Policy", fmt.Sprintf(
+			"default-src 'self'; script-src 'self' 'wasm-unsafe-eval' 'nonce-%s'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'",
+			nonce,
+		))
+		ctx := context.WithValue(r.Context(), cspNonceKey, nonce)
+		next.ServeHTTP(w, r.WithContext(ctx))
 	})
+}
+
+// Serves the WASM app index.html with a CSP nonce injected into every <script>
+// tag. The HTML cannot be cached because each response carries a fresh nonce.
+func (s *HTTPServer) handleIndex(w http.ResponseWriter, r *http.Request) {
+	nonce := nonceFromContext(r.Context())
+	body := bytes.ReplaceAll(
+		s.indexHTML,
+		[]byte("<script"),
+		fmt.Appendf(nil, `<script nonce="%s"`, nonce),
+	)
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
+	w.Write(body)
 }
 
 // Wraps an http.Handler to add Cache-Control headers

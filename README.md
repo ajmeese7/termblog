@@ -5,7 +5,7 @@ A self-hosted, terminal-based blogging platform. Read and write blog posts throu
 ## Features
 
 - **SSH Access** - Connect directly via `ssh localhost -p 2222`
-- **WASM Web Terminal** - Client-side TUI via Ratzilla/Ratatui (zero latency, WebGL2)
+- **WASM Web Terminal** - Client-side TUI via Ratzilla/Ratatui
 - **JSON API** - RESTful API for blog content (`/api/posts`, `/api/search`, etc.)
 - **RSS/Atom/JSON Feeds** - Standard feed syndication
 - **Markdown Posts** - Write in Markdown with YAML frontmatter
@@ -21,7 +21,7 @@ A self-hosted, terminal-based blogging platform. Read and write blog posts throu
 │         Go Server                │     │   Browser (WASM)    │
 │                                  │     │                     │
 │  SSH Server (Wish, :2222)        │     │  Ratzilla/Ratatui   │
-│    └─ Bubbletea TUI              │     │  WebGL2 canvas      │
+│    └─ Bubbletea TUI              │     │  DOM backend        │
 │                                  │     │    │                │
 │  HTTP Server (:8080)             │◄────│    └─ fetch /api/*  │
 │    ├─ JSON API  (/api/*)         │     │                     │
@@ -304,7 +304,7 @@ make build-all    # Build WASM, then embed into Go binary
 - [Wish](https://github.com/charmbracelet/wish) - SSH server
 
 ### Rust (Web WASM)
-- [Ratzilla](https://github.com/ratzilla-rs/ratzilla) - Ratatui WASM backend (WebGL2)
+- [Ratzilla](https://github.com/ratzilla-rs/ratzilla) - Ratatui WASM backend
 - [Ratatui](https://github.com/ratatui/ratatui) - TUI widget library
 - [Trunk](https://trunkrs.dev/) - WASM build tool
 

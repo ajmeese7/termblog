@@ -4,18 +4,19 @@ Guidelines for AI agents working on this codebase.
 
 ## Project Overview
 
-TermBlog is a terminal-based blogging platform written in Go. It serves blog content via SSH (using Wish) and HTTP (with a web-based terminal via xterm.js).
+TermBlog is a terminal-based blogging platform written in Go. It serves blog content via SSH (using Wish) and HTTP (a browser-rendered TUI compiled to WASM with [ratzilla](https://crates.io/crates/ratzilla), plus a JSON API and standard SEO routes).
 
 ## Architecture
 
 ```
-cmd/termblog/main.go     → CLI commands (serve, new, sync, pty)
+cmd/termblog/main.go     → CLI (serve, new, sync, publish, unpublish, delete, list, schedule, version)
 internal/app/            → Config loading and app initialization
 internal/blog/           → Post model, markdown parsing, feed generation
-internal/server/         → SSH server (Wish) and HTTP server (WebSocket + PTY)
+internal/server/         → SSH server (Wish) and HTTP server (WASM TUI, JSON API, RSS/JSON feeds, sitemap, robots, per-post HTML)
 internal/storage/        → SQLite database with migrations
 internal/theme/          → Color themes and Lipgloss styles
-internal/tui/            → Bubbletea TUI (list, reader, search, help views)
+internal/tui/            → Bubbletea TUI for the SSH transport (list, reader, search, help views)
+web/                     → Rust + ratzilla WASM TUI for the HTTP transport (separate from the Bubbletea TUI)
 ```
 
 ## Key Patterns
@@ -33,7 +34,7 @@ internal/tui/            → Bubbletea TUI (list, reader, search, help views)
 
 ### Servers
 - SSH: Wish middleware chain with Bubbletea handler
-- HTTP: Standard library + Gorilla WebSocket, spawns PTY process
+- HTTP: stdlib `net/http`; serves the embedded ratzilla WASM TUI at `/`, a JSON API under `/api/`, RSS/JSON feeds, a sitemap, and per-post/per-tag HTML pages. No WebSocket or PTY — the browser TUI runs entirely client-side as WASM.
 
 ## Common Tasks
 
@@ -56,12 +57,26 @@ internal/tui/            → Bubbletea TUI (list, reader, search, help views)
 1. Create new migration file: `internal/storage/migrations/00X_name.sql`
 2. Migrations run automatically on startup
 
+### Updating the web frontend
+
+**Never hand-edit files under `web/dist/` or `internal/server/wasm_dist/`.** Sources to edit:
+- `web/index.html` — HTML shell, inline CSS, theme-prefetch script
+- `web/src/*.rs` — Rust/ratzilla TUI code
+
+Then regenerate:
+- `make build-wasm` — rebuilds dist + wasm_dist (no Go rebuild)
+- `make build-all` — wasm + Go binary
+
+Restart `./termblog serve` after either to pick up changes.
+
 ## Build & Test
 
 ```bash
-go build ./...           # Build all packages
+go build ./...           # Build all Go packages
 go run ./cmd/termblog    # Run directly
 ./termblog serve         # Start servers after building
+make build-wasm          # Rebuild the WASM frontend (regenerates web/dist + internal/server/wasm_dist)
+make build-all           # Rebuild WASM + Go binary
 ```
 
 ## Style Guidelines
